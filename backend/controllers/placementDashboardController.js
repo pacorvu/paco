@@ -14,17 +14,79 @@ export const getOverallPlacementStats = async (req, res) => {
 
     if (studentsError) throw studentsError;
 
-    // Get total job offers count
-    const { count: totalOffers, error: offersError } = await supabase
+    // Get all job offers with job_type for categorization
+    const { data: allOffers, error: offersError } = await supabase
       .from('job_offers')
-      .select('*', { count: 'exact', head: true });
+      .select('job_type');
 
     if (offersError) throw offersError;
 
-    // Get all job offers to determine placed students
+    // Calculate total offers count
+    const totalOffers = allOffers?.length || 0;
+
+    // Calculate Total Offers Percentage
+    const totalOffersPercent = totalStudents > 0 
+      ? ((totalOffers / totalStudents) * 100).toFixed(2) 
+      : '0.00';
+
+    // Categorize offers by job_type
+    // Total Placed: job_type = "Full time" OR "Full Time PPO" (case-insensitive)
+    // Total Internships: job_type = "internship-only" (case-insensitive)
+    // Total Internship-cum-Fulltime: job_type = "Internship cum Full time" (case-insensitive)
+    let totalPlaced = 0;
+    let totalInternships = 0;
+    let totalInternshipCumFulltime = 0;
+
+    allOffers?.forEach(offer => {
+      const jobType = (offer.job_type || '').trim();
+      const jobTypeLower = jobType.toLowerCase();
+      
+      // Check for Internship cum Full time first (most specific)
+      // Handle variations: "internship cum full time", "internship-cum-fulltime", etc.
+      if (jobTypeLower.includes('internship') && 
+          jobTypeLower.includes('cum') && 
+          jobTypeLower.includes('full time')) {
+        totalInternshipCumFulltime++;
+      }
+      // Check for Full time or Full Time PPO (both are considered placed)
+      // Handle variations: "full time", "full time ppo", "fulltime", etc.
+      else if ((jobTypeLower.includes('full time') || jobTypeLower.includes('fulltime')) && 
+               !jobTypeLower.includes('internship')) {
+        totalPlaced++;
+      }
+      // Check for internship-only (handle both "internship-only" and "internship only")
+      // Must contain "internship" and "only" but NOT "full time" or "cum"
+      else if (jobTypeLower.includes('internship') && 
+               jobTypeLower.includes('only') && 
+               !jobTypeLower.includes('full time') && 
+               !jobTypeLower.includes('cum')) {
+        totalInternships++;
+      }
+    });
+
+    // Calculate Total Placed (Full time + Internship cum Full time)
+    const totalPlacedCombined = totalPlaced + totalInternshipCumFulltime;
+    const totalPlacedCombinedPercent = totalStudents > 0 
+      ? ((totalPlacedCombined / totalStudents) * 100).toFixed(2) 
+      : '0.00';
+
+    // Calculate percentages for each category
+    const totalPlacedPercent = totalStudents > 0 
+      ? ((totalPlaced / totalStudents) * 100).toFixed(2) 
+      : '0.00';
+    
+    const totalInternshipsPercent = totalStudents > 0 
+      ? ((totalInternships / totalStudents) * 100).toFixed(2) 
+      : '0.00';
+    
+    const totalInternshipCumFulltimePercent = totalStudents > 0 
+      ? ((totalInternshipCumFulltime / totalStudents) * 100).toFixed(2) 
+      : '0.00';
+
+    // Get all job offers to determine placed students (for backward compatibility)
     // A student is considered "placed" if they have at least one offer with final_interview_status = "Selected" (case-insensitive)
     // or if offer_letter_status indicates acceptance
-    const { data: allOffers, error: offersError2 } = await supabase
+    const { data: allOffersWithStatus, error: offersError2 } = await supabase
       .from('job_offers')
       .select('usn, final_interview_status, offer_letter_status');
 
@@ -33,7 +95,7 @@ export const getOverallPlacementStats = async (req, res) => {
     // Filter for placed students - check if status contains "selected" (case-insensitive)
     // or if offer_letter_status indicates acceptance
     const placedUSNs = new Set();
-    allOffers?.forEach(offer => {
+    allOffersWithStatus?.forEach(offer => {
       const interviewStatus = (offer.final_interview_status || '').toLowerCase();
       const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
       
@@ -49,7 +111,7 @@ export const getOverallPlacementStats = async (req, res) => {
 
     const totalPlacedStudents = placedUSNs.size;
 
-    // Calculate overall placement percentage
+    // Calculate overall placement percentage (for backward compatibility)
     const overallPlacementPercent = totalStudents > 0 
       ? ((totalPlacedStudents / totalStudents) * 100).toFixed(2) 
       : '0.00';
@@ -118,6 +180,16 @@ export const getOverallPlacementStats = async (req, res) => {
       data: {
         totalStudents: totalStudents || 0,
         totalOffersRecords: totalOffers || 0,
+        totalOffersPercent: parseFloat(totalOffersPercent),
+        totalPlacedCombined: totalPlacedCombined,
+        totalPlacedCombinedPercent: parseFloat(totalPlacedCombinedPercent),
+        totalPlaced: totalPlaced,
+        totalPlacedPercent: parseFloat(totalPlacedPercent),
+        totalInternships: totalInternships,
+        totalInternshipsPercent: parseFloat(totalInternshipsPercent),
+        totalInternshipCumFulltime: totalInternshipCumFulltime,
+        totalInternshipCumFulltimePercent: parseFloat(totalInternshipCumFulltimePercent),
+        // Backward compatibility fields
         totalPlacedStudents: totalPlacedStudents,
         overallPlacementPercent: parseFloat(overallPlacementPercent),
         uniqueHiringCompanies: uniqueHiringCompanies,

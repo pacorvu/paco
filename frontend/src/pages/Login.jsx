@@ -131,23 +131,13 @@ const Login = () => {
     <Box
       w="100%"
       minH="100vh"
-      bgGradient="linear(to-br, blue.50, purple.50, teal.50)"
+      bg="#172e36"
       display="flex"
       alignItems="center"
       justifyContent="center"
       py={8}
       px={4}
       position="relative"
-      _before={{
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'radial-gradient(circle at 20% 50%, rgba(56, 189, 248, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.1) 0%, transparent 50%)',
-        pointerEvents: 'none'
-      }}
     >
       <Box
         maxW="md"
@@ -167,8 +157,7 @@ const Login = () => {
             <Heading 
               as="h1" 
               size="xl" 
-              bgGradient="linear(to-r, blue.600, purple.600)"
-              bgClip="text"
+              color="#d1a85d"
               fontWeight="bold"
               mb={2}
             >
@@ -215,13 +204,13 @@ const Login = () => {
                   borderRadius="xl"
                   _placeholder={{ color: 'gray.400' }}
                   _hover={{ 
-                    borderColor: fieldErrors.email ? 'red.500' : 'blue.400',
+                    borderColor: fieldErrors.email ? 'red.500' : '#d1a85d',
                     bg: 'white',
                     boxShadow: 'sm'
                   }}
                   _focus={{
-                    borderColor: fieldErrors.email ? 'red.500' : 'blue.500',
-                    boxShadow: fieldErrors.email ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(56, 189, 248, 0.2)',
+                    borderColor: fieldErrors.email ? 'red.500' : '#d1a85d',
+                    boxShadow: fieldErrors.email ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
                     bg: 'white'
                   }}
                   transition="all 0.2s"
@@ -251,13 +240,13 @@ const Login = () => {
                   borderRadius="xl"
                   _placeholder={{ color: 'gray.400' }}
                   _hover={{ 
-                    borderColor: fieldErrors.password ? 'red.500' : 'blue.400',
+                    borderColor: fieldErrors.password ? 'red.500' : '#d1a85d',
                     bg: 'white',
                     boxShadow: 'sm'
                   }}
                   _focus={{
-                    borderColor: fieldErrors.password ? 'red.500' : 'blue.500',
-                    boxShadow: fieldErrors.password ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(56, 189, 248, 0.2)',
+                    borderColor: fieldErrors.password ? 'red.500' : '#d1a85d',
+                    boxShadow: fieldErrors.password ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
                     bg: 'white'
                   }}
                   transition="all 0.2s"
@@ -273,10 +262,10 @@ const Login = () => {
               <Box w="100%" textAlign="right">
                 <Link to="/forgot-password">
                   <Text
-                    color="blue.600"
+                    color="#d1a85d"
                     fontSize="sm"
                     fontWeight="500"
-                    _hover={{ color: 'blue.700', textDecoration: 'underline' }}
+                    _hover={{ color: '#c19a4d', textDecoration: 'underline' }}
                     transition="color 0.2s"
                   >
                     Forgot Password?
@@ -291,13 +280,13 @@ const Login = () => {
                 h="52px"
                 isLoading={loading}
                 loadingText="Signing in..."
-                bgGradient="linear(to-r, blue.500, purple.500)"
+                bg="#d1a85d"
                 color="white"
                 fontWeight="600"
                 borderRadius="xl"
                 boxShadow="md"
                 _hover={{ 
-                  bgGradient: "linear(to-r, blue.600, purple.600)",
+                  bg: "#c19a4d",
                   boxShadow: "lg",
                   transform: "translateY(-2px)"
                 }}
@@ -312,25 +301,6 @@ const Login = () => {
             </VStack>
           </Box>
 
-          <Box textAlign="center" pt={2}>
-            <Text fontSize="sm" color="gray.600">
-              Don't have an account?{' '}
-              <Link to="/register">
-                <Text 
-                  as="span" 
-                  color="blue.600" 
-                  fontWeight="600" 
-                  _hover={{ 
-                    color: 'blue.700',
-                    textDecoration: 'underline' 
-                  }}
-                  transition="color 0.2s"
-                >
-                  Create Account
-                </Text>
-              </Link>
-            </Text>
-          </Box>
         </VStack>
       </Box>
     </Box>

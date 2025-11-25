@@ -98,7 +98,7 @@ Body: {
   name: "John Doe",
   email: "user@example.com",
   password: "password123",
-  role: "placement_director",
+  role: "vc",
   otpRequestId: 123,
   otp: "123456"
 }

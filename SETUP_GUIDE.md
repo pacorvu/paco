@@ -26,7 +26,7 @@ The backend will:
 - Create SQLite database at `backend/database/database.sqlite`
 - Create default users:
   - **Admin**: `admin@example.com` / `admin123`
-  - **Placement Director**: `pd@example.com` / `pd123`
+  - **VC**: `vc@example.com` / `vc123`
 
 ## Frontend Setup
 
@@ -54,8 +54,8 @@ npm run dev
 - **Forgot Password Page** (`/forgot-password`) - Password reset functionality
 
 ### ✅ Role-Based Access Control
-- **Admin** - Full access including database browser
-- **Placement Director** - Standard user access
+- **Admin** - Full access including database browser and user registration
+- **VC** - Dashboard access (same as admin but without registration access)
 
 ### ✅ Database Browser (Admin Only)
 - View all database tables
@@ -91,10 +91,10 @@ npm run dev
    - Password: `admin123`
    - Role: `admin`
 
-2. **Placement Director**
-   - Email: `pd@example.com`
-   - Password: `pd123`
-   - Role: `placement_director`
+2. **VC**
+   - Email: `vc@example.com`
+   - Password: `vc123`
+   - Role: `vc`
 
 ## Project Structure
 

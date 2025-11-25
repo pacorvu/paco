@@ -71,6 +71,8 @@ const Dashboard = () => {
   const [ctcStats, setCtcStats] = useState({ averageCTC: 0, medianCTC: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isTotalOffersHovered, setIsTotalOffersHovered] = useState(false);
+  const [isTotalPlacedHovered, setIsTotalPlacedHovered] = useState(false);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -125,12 +127,15 @@ const Dashboard = () => {
       {
         label: 'Number of Placements',
         data: distribution.data,
-        borderColor: '#4c51bf',
-        backgroundColor: 'rgba(76, 81, 191, 0.2)',
+        borderColor: '#9ca3af',
+        backgroundColor: 'rgba(156, 163, 175, 0.2)',
         fill: true,
         tension: 0.4,
         pointRadius: 5,
-        pointBackgroundColor: '#4c51bf',
+        pointBackgroundColor: '#172e36',
+        pointBorderColor: '#172e36',
+        pointHoverBackgroundColor: '#172e36',
+        pointHoverBorderColor: '#172e36',
         pointHoverRadius: 7,
       }
     ]
@@ -221,9 +226,18 @@ const Dashboard = () => {
   // Calculate metrics
   const totalStudents = overallStats?.totalStudents || 0;
   const totalOffers = overallStats?.totalOffersRecords || 0;
+  const totalOffersPercent = overallStats?.totalOffersPercent || 0;
+  const totalPlacedCombined = overallStats?.totalPlacedCombined || 0;
+  const totalPlacedCombinedPercent = overallStats?.totalPlacedCombinedPercent || 0;
+  const totalPlaced = overallStats?.totalPlaced || 0;
+  const totalPlacedPercent = overallStats?.totalPlacedPercent || 0;
+  const totalInternships = overallStats?.totalInternships || 0;
+  const totalInternshipsPercent = overallStats?.totalInternshipsPercent || 0;
+  const totalInternshipCumFulltime = overallStats?.totalInternshipCumFulltime || 0;
+  const totalInternshipCumFulltimePercent = overallStats?.totalInternshipCumFulltimePercent || 0;
+  // Backward compatibility
   const placedStudents = overallStats?.totalPlacedStudents || 0;
   const placementRate = overallStats?.overallPlacementPercent || 0;
-  const offerRate = totalStudents > 0 ? ((totalOffers / totalStudents) * 100).toFixed(2) : '0.00';
   const uniqueCompanies = overallStats?.uniqueHiringCompanies || 0;
   const highestCTC = overallStats?.highestCTCLPA || 0;
   const averageCTC = ctcStats?.averageCTC || overallStats?.averageCTCLPA || 0;
@@ -232,16 +246,11 @@ const Dashboard = () => {
 
   // Transform school stats to match table format
   const placementBySchool = schoolStats.map(stat => {
-    // Find if this school has the highest placement percentage
-    const maxPercent = Math.max(...schoolStats.map(s => s.placementPercent || 0));
-    const isTop = stat.placementPercent === maxPercent && maxPercent > 0;
-    
     return {
       school: stat.school,
       total: stat.totalStudents,
       placed: stat.placedStudents,
-      percent: parseFloat(stat.placementPercent?.toFixed(2) || 0),
-      isTop: isTop
+      percent: parseFloat(stat.placementPercent?.toFixed(2) || 0)
     };
   }).sort((a, b) => (b.percent || 0) - (a.percent || 0)); // Sort by placement percentage descending
 
@@ -274,7 +283,7 @@ const Dashboard = () => {
               <>
                 {/* Row 1: Total Students */}
                 <Box
-                  bgGradient="linear(to-r, #343a85, #4c51bf)"
+                  bgGradient="linear(to-r, #172e36, #1e3a47)"
                   p={6}
                   borderRadius="xl"
                   boxShadow="2xl"
@@ -284,58 +293,14 @@ const Dashboard = () => {
                     <Text fontSize="lg" fontWeight="medium" textTransform="uppercase" letterSpacing="widest" opacity={0.8}>
                       Total Students Enrolled
                     </Text>
-                    <Icon as={FiUsers} boxSize={8} opacity={0.7} />
+                    <Icon as={FiUsers} boxSize={8} color="#d1a85d" opacity={0.9} />
                   </Flex>
                   <Text fontSize="5xl" fontWeight="extrabold" mt={1}>
                     {totalStudents}
                   </Text>
                 </Box>
 
-                {/* Row 2: Student Distribution by School */}
-                <Box>
-                  <Heading as="h2" fontSize="xl" fontWeight="bold" color="gray.700" mb={4}>
-                    Student Distribution by School
-                  </Heading>
-                  <SimpleGrid columns={{ base: 2, sm: 4, lg: 8 }} spacing={4}>
-                    {schoolDistribution.length > 0 ? (
-                      schoolDistribution.map((school) => {
-                        // Determine if this is the top school by student count
-                        const maxCount = Math.max(...schoolDistribution.map(s => s.total || 0));
-                        const isTopSchool = school.total === maxCount && maxCount > 0;
-                        
-                        return (
-                          <Box
-                            key={school.name}
-                            bg={cardBg}
-                            p={3}
-                            borderRadius="xl"
-                            boxShadow="md"
-                            textAlign="center"
-                            borderBottom="2px solid"
-                            borderColor={isTopSchool ? 'green.500' : 'blue.400'}
-                          >
-                            <Text fontSize="sm" fontWeight="semibold" color="gray.700">
-                              {school.name}
-                            </Text>
-                            <Text
-                              fontSize="xl"
-                              fontWeight="bold"
-                              color={isTopSchool ? 'green.600' : 'blue.600'}
-                            >
-                              {school.total || 0}
-                            </Text>
-                          </Box>
-                        );
-                      })
-                    ) : (
-                      <Text color="gray.500" textAlign="center" gridColumn="1 / -1">
-                        No school distribution data available
-                      </Text>
-                    )}
-                  </SimpleGrid>
-                </Box>
-
-                {/* Row 3: Core Metrics */}
+                {/* Row 2: Total Offers and Total Placed */}
                 <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={{ base: 4, sm: 6 }}>
                   <Box
                     bg={cardBg}
@@ -343,7 +308,16 @@ const Dashboard = () => {
                     borderRadius="xl"
                     boxShadow="lg"
                     borderBottom="4px solid"
-                    borderColor="blue.400"
+                    borderColor="#d1a85d"
+                    onMouseEnter={() => setIsTotalOffersHovered(true)}
+                    onMouseLeave={() => setIsTotalOffersHovered(false)}
+                    cursor="pointer"
+                    transition="all 0.3s ease"
+                    _hover={{
+                      transform: 'scale(1.02)',
+                      boxShadow: 'xl',
+                      borderColor: '#d1a85d'
+                    }}
                   >
                     <Text fontSize="xs" fontWeight="medium" color="gray.500" textTransform="uppercase" letterSpacing="wider">
                       Total Offers
@@ -359,13 +333,13 @@ const Dashboard = () => {
                     borderRadius="xl"
                     boxShadow="lg"
                     borderBottom="4px solid"
-                    borderColor="indigo.400"
+                    borderColor="#d1a85d"
                   >
                     <Text fontSize="xs" fontWeight="medium" color="gray.500" textTransform="uppercase" letterSpacing="wider">
-                      Offer Rate
+                      Total Offers Percentage
                     </Text>
-                    <Text fontSize="2xl" fontWeight="bold" color="indigo.600" mt={1}>
-                      {offerRate}%
+                    <Text fontSize="2xl" fontWeight="bold" color="#d1a85d" mt={1}>
+                      {totalOffersPercent.toFixed(2)}%
                     </Text>
                   </Box>
 
@@ -375,13 +349,22 @@ const Dashboard = () => {
                     borderRadius="xl"
                     boxShadow="lg"
                     borderBottom="4px solid"
-                    borderColor="green.500"
+                    borderColor="#d1a85d"
+                    onMouseEnter={() => setIsTotalPlacedHovered(true)}
+                    onMouseLeave={() => setIsTotalPlacedHovered(false)}
+                    cursor="pointer"
+                    transition="all 0.3s ease"
+                    _hover={{
+                      transform: 'scale(1.02)',
+                      boxShadow: 'xl',
+                      borderColor: '#d1a85d'
+                    }}
                   >
                     <Text fontSize="xs" fontWeight="medium" color="gray.500" textTransform="uppercase" letterSpacing="wider">
-                      Placed Students
+                      Total Placed
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="gray.900" mt={1}>
-                      {placedStudents}
+                      {totalPlacedCombined}
                     </Text>
                   </Box>
 
@@ -391,18 +374,147 @@ const Dashboard = () => {
                     borderRadius="xl"
                     boxShadow="lg"
                     borderBottom="4px solid"
-                    borderColor="blue.600"
+                    borderColor="#d1a85d"
                   >
                     <Text fontSize="xs" fontWeight="medium" color="gray.500" textTransform="uppercase" letterSpacing="wider">
-                      Placement Rate
+                      Total Placed Percentage
                     </Text>
-                    <Text fontSize="2xl" fontWeight="bold" color="blue.600" mt={1}>
-                      {placementRate}%
+                    <Text fontSize="2xl" fontWeight="bold" color="#d1a85d" mt={1}>
+                      {totalPlacedCombinedPercent.toFixed(2)}%
                     </Text>
                   </Box>
                 </SimpleGrid>
 
-                {/* Row 4: CTC Financial Summary */}
+                {/* Row 4: Three Categories */}
+                <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={{ base: 4, sm: 6 }}>
+                  {/* Total Full time */}
+                  <Box
+                    bg={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.50' : cardBg}
+                    p={4}
+                    borderRadius="xl"
+                    boxShadow={(isTotalOffersHovered || isTotalPlacedHovered) ? 'xl' : 'lg'}
+                    borderBottom="4px solid"
+                    borderColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.600' : 'green.500'}
+                    border={(isTotalOffersHovered || isTotalPlacedHovered) ? '2px solid' : 'none'}
+                    borderTopColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.600' : 'transparent'}
+                    borderLeftColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.600' : 'transparent'}
+                    borderRightColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.600' : 'transparent'}
+                    transition="all 0.4s ease-out"
+                    transform={(isTotalOffersHovered || isTotalPlacedHovered) ? 'scale(1.05)' : 'scale(1)'}
+                    position="relative"
+                    overflow="hidden"
+                  >
+                    {(isTotalOffersHovered || isTotalPlacedHovered) && (
+                      <Box
+                        position="absolute"
+                        top="0"
+                        left="0"
+                        right="0"
+                        bottom="0"
+                        bgGradient="linear(to-br, green.100, green.50)"
+                        opacity={0.5}
+                        zIndex={0}
+                      />
+                    )}
+                    <Box position="relative" zIndex={1}>
+                      <Text fontSize="xs" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.700' : 'gray.500'} textTransform="uppercase" letterSpacing="wider">
+                        Total Full time
+                      </Text>
+                      <Text fontSize="2xl" fontWeight="bold" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.800' : 'gray.900'} mt={1}>
+                        {totalPlaced}
+                      </Text>
+                      <Text fontSize="sm" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.700' : 'green.600'} mt={2}>
+                        Total Full time %: {totalPlacedPercent.toFixed(2)}%
+                      </Text>
+                    </Box>
+                  </Box>
+
+                  {/* Total Internships */}
+                  <Box
+                    bg={isTotalOffersHovered ? 'purple.50' : cardBg}
+                    p={4}
+                    borderRadius="xl"
+                    boxShadow={isTotalOffersHovered ? 'xl' : 'lg'}
+                    borderBottom="4px solid"
+                    borderColor={isTotalOffersHovered ? 'purple.600' : 'purple.500'}
+                    border={isTotalOffersHovered ? '2px solid' : 'none'}
+                    borderTopColor={isTotalOffersHovered ? 'purple.600' : 'transparent'}
+                    borderLeftColor={isTotalOffersHovered ? 'purple.600' : 'transparent'}
+                    borderRightColor={isTotalOffersHovered ? 'purple.600' : 'transparent'}
+                    transition="all 0.4s ease-out"
+                    transform={isTotalOffersHovered ? 'scale(1.05)' : 'scale(1)'}
+                    position="relative"
+                    overflow="hidden"
+                  >
+                    {isTotalOffersHovered && (
+                      <Box
+                        position="absolute"
+                        top="0"
+                        left="0"
+                        right="0"
+                        bottom="0"
+                        bgGradient="linear(to-br, purple.100, purple.50)"
+                        opacity={0.5}
+                        zIndex={0}
+                      />
+                    )}
+                    <Box position="relative" zIndex={1}>
+                      <Text fontSize="xs" fontWeight="medium" color={isTotalOffersHovered ? 'purple.700' : 'gray.500'} textTransform="uppercase" letterSpacing="wider">
+                        Total Internships
+                      </Text>
+                      <Text fontSize="2xl" fontWeight="bold" color={isTotalOffersHovered ? 'purple.800' : 'gray.900'} mt={1}>
+                        {totalInternships}
+                      </Text>
+                      <Text fontSize="sm" fontWeight="medium" color={isTotalOffersHovered ? 'purple.700' : 'purple.600'} mt={2}>
+                        Total Internships %: {totalInternshipsPercent.toFixed(2)}%
+                      </Text>
+                    </Box>
+                  </Box>
+
+                  {/* Total Internship-cum-Fulltime */}
+                  <Box
+                    bg={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.50' : cardBg}
+                    p={4}
+                    borderRadius="xl"
+                    boxShadow={(isTotalOffersHovered || isTotalPlacedHovered) ? 'xl' : 'lg'}
+                    borderBottom="4px solid"
+                    borderColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.600' : 'orange.500'}
+                    border={(isTotalOffersHovered || isTotalPlacedHovered) ? '2px solid' : 'none'}
+                    borderTopColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.600' : 'transparent'}
+                    borderLeftColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.600' : 'transparent'}
+                    borderRightColor={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.600' : 'transparent'}
+                    transition="all 0.4s ease-out"
+                    transform={(isTotalOffersHovered || isTotalPlacedHovered) ? 'scale(1.05)' : 'scale(1)'}
+                    position="relative"
+                    overflow="hidden"
+                  >
+                    {(isTotalOffersHovered || isTotalPlacedHovered) && (
+                      <Box
+                        position="absolute"
+                        top="0"
+                        left="0"
+                        right="0"
+                        bottom="0"
+                        bgGradient="linear(to-br, orange.100, orange.50)"
+                        opacity={0.5}
+                        zIndex={0}
+                      />
+                    )}
+                    <Box position="relative" zIndex={1}>
+                      <Text fontSize="xs" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.700' : 'gray.500'} textTransform="uppercase" letterSpacing="wider">
+                        Total Internship-cum-Fulltime
+                      </Text>
+                      <Text fontSize="2xl" fontWeight="bold" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.800' : 'gray.900'} mt={1}>
+                        {totalInternshipCumFulltime}
+                      </Text>
+                      <Text fontSize="sm" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.700' : 'orange.600'} mt={2}>
+                        Total Internship-cum-Fulltime %: {totalInternshipCumFulltimePercent.toFixed(2)}%
+                      </Text>
+                    </Box>
+                  </Box>
+                </SimpleGrid>
+
+                {/* Row 5: CTC Financial Summary */}
                 <Box
                   bg={cardBg}
                   p={6}
@@ -422,12 +534,7 @@ const Dashboard = () => {
                     {/* Chart */}
                     <Box gridColumn={{ base: '1', lg: 'span 2' }} h="80">
                       {distribution.labels.length > 0 ? (
-                        <>
-                          <Line data={chartData} options={chartOptions} />
-                          <Text fontSize="xs" color="gray.400" mt={2} textAlign="center">
-                            Data points represent the number of students placed within each 2 LPA salary range.
-                          </Text>
-                        </>
+                        <Line data={chartData} options={chartOptions} />
                       ) : (
                         <Box
                           display="flex"
@@ -482,24 +589,6 @@ const Dashboard = () => {
                       <Box
                         p={3}
                         borderRadius="lg"
-                        bg="yellow.50"
-                        border="1px solid"
-                        borderColor="yellow.200"
-                        boxShadow="sm"
-                        _hover={{ boxShadow: 'lg', transform: 'scale(1.02)', transition: 'all 0.3s' }}
-                        cursor="pointer"
-                      >
-                        <Text fontSize="sm" fontWeight="medium" color="gray.500" textTransform="uppercase">
-                          Median CTC
-                        </Text>
-                        <Text fontSize="3xl" fontWeight="extrabold" color="yellow.700" mt={1}>
-                          {medianCTC} LPA
-                        </Text>
-                      </Box>
-
-                      <Box
-                        p={3}
-                        borderRadius="lg"
                         bg="red.50"
                         border="1px solid"
                         borderColor="red.200"
@@ -518,7 +607,7 @@ const Dashboard = () => {
                   </SimpleGrid>
                 </Box>
 
-                {/* Row 5: Hiring Partners */}
+                {/* Row 6: Hiring Partners */}
                 <Box
                   bg={cardBg}
                   p={6}
@@ -585,19 +674,20 @@ const Dashboard = () => {
                           {hiringPartners.map((companyName, index) => {
                             const color = getPartnerColor(index);
                             return (
-                              <Box key={`set1-${companyName}-${index}`} flexShrink={0} px={6} display="inline-block">
+                              <Box key={`set1-${companyName}-${index}`} flexShrink={0} px={8} display="inline-block">
                                 <Image
-                                  src={`https://placehold.co/100x40/${color}/ffffff?text=${encodeURIComponent(companyName)}`}
+                                  src={`https://placehold.co/180x70/${color}/ffffff?text=${encodeURIComponent(companyName)}`}
                                   alt={`${companyName} Logo`}
-                                  h={10}
+                                  h={16}
                                   w="auto"
                                   objectFit="contain"
-                                  borderRadius="md"
-                                  p={1}
-                                  border="1px solid"
-                                  borderColor="gray.200"
+                                  borderRadius="lg"
+                                  p={3}
+                                  border="2px solid"
+                                  borderColor="gray.300"
+                                  boxShadow="md"
                                   onError={(e) => {
-                                    e.target.src = `https://placehold.co/100x40/${color}/ffffff?text=Co${index + 1}`;
+                                    e.target.src = `https://placehold.co/180x70/${color}/ffffff?text=Co${index + 1}`;
                                   }}
                                 />
                               </Box>
@@ -607,19 +697,20 @@ const Dashboard = () => {
                           {hiringPartners.map((companyName, index) => {
                             const color = getPartnerColor(index);
                             return (
-                              <Box key={`set2-${companyName}-${index}`} flexShrink={0} px={6} display="inline-block">
+                              <Box key={`set2-${companyName}-${index}`} flexShrink={0} px={8} display="inline-block">
                                 <Image
-                                  src={`https://placehold.co/100x40/${color}/ffffff?text=${encodeURIComponent(companyName)}`}
+                                  src={`https://placehold.co/180x70/${color}/ffffff?text=${encodeURIComponent(companyName)}`}
                                   alt={`${companyName} Logo`}
-                                  h={10}
+                                  h={16}
                                   w="auto"
                                   objectFit="contain"
-                                  borderRadius="md"
-                                  p={1}
-                                  border="1px solid"
-                                  borderColor="gray.200"
+                                  borderRadius="lg"
+                                  p={3}
+                                  border="2px solid"
+                                  borderColor="gray.300"
+                                  boxShadow="md"
                                   onError={(e) => {
-                                    e.target.src = `https://placehold.co/100x40/${color}/ffffff?text=Co${index + 1}`;
+                                    e.target.src = `https://placehold.co/180x70/${color}/ffffff?text=Co${index + 1}`;
                                   }}
                                 />
                               </Box>
@@ -635,7 +726,51 @@ const Dashboard = () => {
                   </Box>
                 </Box>
 
-                {/* Row 6: Placement by School Table */}
+                {/* Row 7: Student Distribution by School */}
+                <Box>
+                  <Heading as="h2" fontSize="xl" fontWeight="bold" color="gray.700" mb={4}>
+                    Student Distribution by School
+                  </Heading>
+                  <SimpleGrid columns={{ base: 2, sm: 4, lg: 8 }} spacing={4} mb={8}>
+                    {schoolDistribution.length > 0 ? (
+                      schoolDistribution.map((school) => {
+                        // Determine if this is the top school by student count
+                        const maxCount = Math.max(...schoolDistribution.map(s => s.total || 0));
+                        const isTopSchool = school.total === maxCount && maxCount > 0;
+                        
+                        return (
+                          <Box
+                            key={school.name}
+                            bg={cardBg}
+                            p={3}
+                            borderRadius="xl"
+                            boxShadow="md"
+                            textAlign="center"
+                            borderBottom="2px solid"
+                            borderColor={isTopSchool ? 'green.500' : 'blue.400'}
+                          >
+                            <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+                              {school.name}
+                            </Text>
+                            <Text
+                              fontSize="xl"
+                              fontWeight="bold"
+                              color={isTopSchool ? 'green.600' : 'blue.600'}
+                            >
+                              {school.total || 0}
+                            </Text>
+                          </Box>
+                        );
+                      })
+                    ) : (
+                      <Text color="gray.500" textAlign="center" gridColumn="1 / -1">
+                        No school distribution data available
+                      </Text>
+                    )}
+                  </SimpleGrid>
+                </Box>
+
+                {/* Row 8: Placement by School Table */}
                 <Box>
                   <Heading as="h2" fontSize="2xl" fontWeight="bold" color="gray.700" mb={4}>
                     Placement by School
@@ -654,7 +789,7 @@ const Dashboard = () => {
                   >
                     <TableContainer overflowX="auto">
                       <Table variant="simple">
-                        <Thead bg="blue.800" borderBottom="2px solid" borderColor="blue.600">
+                        <Thead bgGradient="linear(to-r, #172e36, #1e3a47)" borderBottom="2px solid" borderColor="#1e3a47">
                           <Tr>
                             <Th color="white" fontSize="sm" fontWeight="extrabold" textTransform="uppercase" letterSpacing="wider" py={3} px={6}>
                               School
@@ -663,10 +798,10 @@ const Dashboard = () => {
                               Total Students
                             </Th>
                             <Th isNumeric color="white" fontSize="sm" fontWeight="extrabold" textTransform="uppercase" letterSpacing="wider" py={3} px={6}>
-                              Placed Students
+                              Total Offers
                             </Th>
                             <Th isNumeric color="white" fontSize="sm" fontWeight="extrabold" textTransform="uppercase" letterSpacing="wider" py={3} px={6}>
-                              Placement %
+                              Offer %
                             </Th>
                           </Tr>
                         </Thead>
@@ -675,49 +810,42 @@ const Dashboard = () => {
                             placementBySchool.map((row, index) => (
                               <Tr
                                 key={`${row.school}-${index}`}
-                                bg={row.isTop ? 'green.50' : index % 2 === 0 ? 'white' : 'gray.50'}
-                                _hover={{ bg: 'blue.50', transition: 'background 0.15s' }}
+                                bg="white"
+                                _hover={{ bg: 'rgba(23, 46, 54, 0.05)', transition: 'background 0.15s' }}
                                 cursor="pointer"
-                                borderY={row.isTop ? '2px solid' : 'none'}
-                                borderColor={row.isTop ? 'green.400' : 'transparent'}
-                                boxShadow={row.isTop ? 'md' : 'none'}
                               >
-                              <Td
-                                px={6}
-                                py={4}
-                                fontSize="base"
-                                fontWeight={row.isTop ? 'extrabold' : 'medium'}
-                                color={row.isTop ? 'green.700' : 'gray.800'}
-                              >
-                                <HStack>
-                                  {row.isTop && <Text fontSize="xl">🌟</Text>}
-                                  <Text>{row.school}</Text>
-                                </HStack>
-                              </Td>
-                              <Td isNumeric px={6} py={4} fontSize="base" fontWeight={row.isTop ? 'bold' : 'normal'} color="gray.600">
-                                {row.total}
-                              </Td>
-                              <Td isNumeric px={6} py={4} fontSize="base" fontWeight={row.isTop ? 'bold' : 'normal'} color="gray.600">
-                                {row.placed}
-                              </Td>
-                              <Td isNumeric px={6} py={4} fontSize="base" fontWeight={row.isTop ? 'bold' : 'medium'}>
-                                <Badge
-                                  fontSize={row.isTop ? 'sm' : 'xs'}
-                                  fontWeight={row.isTop ? 'extrabold' : 'bold'}
-                                  px={4}
-                                  py={1}
-                                  borderRadius="full"
-                                  colorScheme={row.percent === 0 ? 'red' : row.isTop ? 'green' : 'blue'}
-                                  bg={row.isTop ? 'green.600' : row.percent === 0 ? 'red.50' : 'blue.50'}
-                                  color={row.isTop ? 'white' : row.percent === 0 ? 'red.700' : 'blue.700'}
-                                  border="1px solid"
-                                  borderColor={row.isTop ? 'green.600' : row.percent === 0 ? 'red.200' : 'blue.200'}
-                                  boxShadow={row.isTop ? 'lg' : 'none'}
+                                <Td
+                                  px={6}
+                                  py={4}
+                                  fontSize="base"
+                                  fontWeight="medium"
+                                  color="gray.800"
                                 >
-                                  {row.percent}%
-                                </Badge>
-                              </Td>
-                            </Tr>
+                                  <Text>{row.school}</Text>
+                                </Td>
+                                <Td isNumeric px={6} py={4} fontSize="base" fontWeight="normal" color="gray.600">
+                                  {row.total}
+                                </Td>
+                                <Td isNumeric px={6} py={4} fontSize="base" fontWeight="normal" color="gray.600">
+                                  {row.placed}
+                                </Td>
+                                <Td isNumeric px={6} py={4} fontSize="base" fontWeight="medium">
+                                  <Badge
+                                    fontSize="xs"
+                                    fontWeight="bold"
+                                    px={4}
+                                    py={1}
+                                    borderRadius="full"
+                                    colorScheme={row.percent === 0 ? 'red' : row.percent > 10 ? 'green' : 'blue'}
+                                    bg={row.percent === 0 ? 'red.50' : row.percent > 10 ? 'green.50' : 'blue.50'}
+                                    color={row.percent === 0 ? 'red.700' : row.percent > 10 ? 'green.700' : 'blue.700'}
+                                    border="1px solid"
+                                    borderColor={row.percent === 0 ? 'red.200' : row.percent > 10 ? 'green.200' : 'blue.200'}
+                                  >
+                                    {row.percent}%
+                                  </Badge>
+                                </Td>
+                              </Tr>
                             ))
                           ) : (
                             <Tr>
@@ -727,17 +855,23 @@ const Dashboard = () => {
                             </Tr>
                           )}
                           {/* Footer Row */}
-                          <Tr bg="gray.100" fontWeight="bold" color="gray.700" borderTop="2px solid" borderColor="gray.300">
-                            <Td px={6} py={4} fontSize="sm" textTransform="uppercase">
+                          <Tr 
+                            bgGradient="linear(to-r, rgba(23, 46, 54, 0.08), rgba(30, 58, 71, 0.08))" 
+                            fontWeight="bold" 
+                            color="gray.800" 
+                            borderTop="2px solid" 
+                            borderColor="#172e36"
+                          >
+                            <Td px={6} py={4} fontSize="sm" textTransform="uppercase" fontWeight="700">
                               Total
                             </Td>
-                            <Td isNumeric px={6} py={4} fontSize="sm">
+                            <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
                               {totalStudents}
                             </Td>
-                            <Td isNumeric px={6} py={4} fontSize="sm">
+                            <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
                               {placedStudents}
                             </Td>
-                            <Td isNumeric px={6} py={4} fontSize="sm">
+                            <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
                               {placementRate}%
                             </Td>
                           </Tr>

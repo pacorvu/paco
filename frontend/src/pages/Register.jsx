@@ -8,21 +8,24 @@ import {
   Heading,
   Text,
   HStack,
+  Container,
 } from '@chakra-ui/react';
 import { useAuth } from '../context/AuthContext';
+import AdminLayout from '../components/AdminLayout';
 
 const Register = () => {
   const [step, setStep] = useState(1); // 1: Name/Email/OTP, 2: Password
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'placement_director',
+    role: 'vc',
     otp: '',
     password: '',
     confirmPassword: ''
   });
   const [otpRequestId, setOtpRequestId] = useState(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -102,6 +105,7 @@ const Register = () => {
       setFieldErrors({ ...fieldErrors, [name]: '' });
     }
     if (error) setError('');
+    if (success) setSuccess('');
   };
 
   const handleSendOtp = async (isResend = false) => {
@@ -207,18 +211,42 @@ const Register = () => {
     setLoading(true);
 
     try {
+      // Pass isAdminRegistering flag so admin stays logged in
       const result = await register(
         formData.name.trim(),
         formData.email.trim(),
         formData.password,
         formData.role,
         otpRequestId,
-        formData.otp
+        formData.otp,
+        true // isAdminRegistering = true
       );
 
       if (result && result.success) {
-        // Registration successful, user is automatically logged in
-        navigate('/dashboard');
+        // Registration successful - show success message
+        setError('');
+        setSuccess(`User ${result.user.name} (${result.user.email}) has been registered successfully!`);
+        
+        // Reset form
+        setFormData({
+          name: '',
+          email: '',
+          role: 'vc',
+          otp: '',
+          password: '',
+          confirmPassword: ''
+        });
+        setOtpSent(false);
+        setOtpVerified(false);
+        setOtpRequestId(null);
+        setStep(1);
+        setResendAttempts(0);
+        setResendCountdown(0);
+        
+        // Navigate back to dashboard after a short delay
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 2000);
       } else {
         const errorMessage = result?.message || 'Registration failed. Please try again.';
         setError(errorMessage);
@@ -236,54 +264,44 @@ const Register = () => {
   };
 
   return (
-    <Box
-      w="100%"
-      minH="100vh"
-      bgGradient="linear(to-br, blue.50, purple.50, teal.50)"
-      display="flex"
-      alignItems="center"
-      justifyContent="center"
-      py={8}
-      px={4}
-      position="relative"
-      _before={{
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'radial-gradient(circle at 20% 50%, rgba(56, 189, 248, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.1) 0%, transparent 50%)',
-        pointerEvents: 'none'
-      }}
-    >
+    <AdminLayout>
       <Box
-        maxW="md"
         w="100%"
-        bg="white"
-        borderRadius="2xl"
-        boxShadow="2xl"
-        p={10}
-        border="1px solid"
-        borderColor="gray.100"
+        minH="calc(100vh - 72px)"
+        bg="#172e36"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        py={8}
+        px={4}
         position="relative"
-        zIndex={1}
-        className="fade-in"
       >
+        <Container maxW="md" w="100%">
+          <Box
+            w="100%"
+            bg="white"
+            borderRadius="2xl"
+            boxShadow="2xl"
+            p={10}
+            border="1px solid"
+            borderColor="gray.100"
+            position="relative"
+            zIndex={1}
+            className="fade-in"
+          >
         <VStack spacing={8} align="stretch">
           <Box textAlign="center">
             <Heading 
               as="h1" 
               size="xl" 
-              bgGradient="linear(to-r, blue.600, purple.600)"
-              bgClip="text"
+              color="#d1a85d"
               fontWeight="bold"
               mb={2}
             >
-              Create Account
+              Register New User
             </Heading>
             <Text color="gray.600" fontSize="md">
-              Join us to get started
+              Create a new account for a user
             </Text>
           </Box>
 
@@ -294,7 +312,7 @@ const Register = () => {
                 w="40px"
                 h="40px"
                 borderRadius="full"
-                bgGradient={step >= 1 ? "linear(to-r, blue.500, purple.500)" : "linear(to-r, gray.300, gray.300)"}
+                bg={step >= 1 ? "#d1a85d" : "gray.300"}
                 color="white"
                 display="flex"
                 alignItems="center"
@@ -309,7 +327,7 @@ const Register = () => {
               <Box
                 flex={1}
                 h="3px"
-                bgGradient={step >= 2 ? "linear(to-r, blue.500, purple.500)" : "linear(to-r, gray.300, gray.300)"}
+                bg={step >= 2 ? "#d1a85d" : "gray.300"}
                 borderRadius="full"
                 transition="all 0.3s"
               />
@@ -317,7 +335,7 @@ const Register = () => {
                 w="40px"
                 h="40px"
                 borderRadius="full"
-                bgGradient={step >= 2 ? "linear(to-r, blue.500, purple.500)" : "linear(to-r, gray.300, gray.300)"}
+                bg={step >= 2 ? "#d1a85d" : "gray.300"}
                 color="white"
                 display="flex"
                 alignItems="center"
@@ -332,6 +350,21 @@ const Register = () => {
             </HStack>
           </Box>
 
+          {success && (
+            <Box
+              bg="green.50"
+              border="1px solid"
+              borderColor="green.300"
+              borderRadius="lg"
+              p={4}
+              w="100%"
+              boxShadow="sm"
+            >
+              <Text color="green.700" fontSize="sm" fontWeight="500">
+                {success}
+              </Text>
+            </Box>
+          )}
           {error && (
             <Box
               bg="red.50"
@@ -371,12 +404,12 @@ const Register = () => {
                     borderRadius="lg"
                     _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.name ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.name ? 'red.500' : '#d1a85d',
                       bg: 'white'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.name ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.name ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                      borderColor: fieldErrors.name ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.name ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
                       bg: 'white'
                     }}
                     _disabled={{
@@ -413,12 +446,12 @@ const Register = () => {
                     borderRadius="lg"
                     _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.email ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.email ? 'red.500' : '#d1a85d',
                       bg: 'white'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.email ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.email ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                      borderColor: fieldErrors.email ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.email ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
                       bg: 'white'
                     }}
                     _disabled={{
@@ -457,12 +490,12 @@ const Register = () => {
                     fontWeight="500"
                     isDisabled={otpSent}
                     _hover={{ 
-                      borderColor: 'blue.400',
+                      borderColor: '#d1a85d',
                       bg: 'white'
                     }}
                     _focus={{
-                      borderColor: 'blue.500',
-                      boxShadow: '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                      borderColor: '#d1a85d',
+                      boxShadow: '0 0 0 3px rgba(209, 168, 93, 0.2)',
                       bg: 'white',
                       outline: 'none'
                     }}
@@ -474,7 +507,7 @@ const Register = () => {
                     }}
                     required
                   >
-                    <option value="placement_director">Placement Director</option>
+                    <option value="vc">VC</option>
                     <option value="admin">Admin</option>
                   </Box>
                 </Box>
@@ -487,13 +520,13 @@ const Register = () => {
                     h="48px"
                     isLoading={sendingOtp}
                     loadingText="Sending OTP..."
-                    bgGradient="linear(to-r, blue.500, purple.500)"
+                    bg="#d1a85d"
                     color="white"
                     fontWeight="600"
                     borderRadius="lg"
                     boxShadow="md"
                     _hover={{ 
-                      bgGradient: "linear(to-r, blue.600, purple.600)",
+                      bg: "#c19a4d",
                       boxShadow: "lg",
                       transform: "translateY(-1px)"
                     }}
@@ -541,12 +574,12 @@ const Register = () => {
                         borderRadius="lg"
                         _placeholder={{ color: 'gray.400' }}
                         _hover={{ 
-                          borderColor: fieldErrors.otp ? 'red.500' : 'blue.400',
+                          borderColor: fieldErrors.otp ? 'red.500' : '#d1a85d',
                           bg: 'white'
                         }}
                         _focus={{
-                          borderColor: fieldErrors.otp ? 'red.500' : 'blue.500',
-                          boxShadow: fieldErrors.otp ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                          borderColor: fieldErrors.otp ? 'red.500' : '#d1a85d',
+                          boxShadow: fieldErrors.otp ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
                           bg: 'white'
                         }}
                         required
@@ -572,20 +605,20 @@ const Register = () => {
                         <Box mt={2} textAlign="center">
                           {resendCountdown > 0 ? (
                             <Text color="gray.600" fontSize="xs">
-                              Resend OTP in <Text as="span" fontWeight="600" color="blue.600">{resendCountdown}s</Text>
+                              Resend OTP in <Text as="span" fontWeight="600" color="#d1a85d">{resendCountdown}s</Text>
                             </Text>
                           ) : (
                             <Button
                               onClick={() => handleSendOtp(true)}
                               size="sm"
                               variant="link"
-                              color="blue.600"
+                              color="#d1a85d"
                               fontSize="xs"
                               fontWeight="600"
                               isLoading={sendingOtp}
                               loadingText="Resending..."
                               _hover={{ 
-                                color: 'blue.700',
+                                color: '#c19a4d',
                                 textDecoration: 'underline'
                               }}
                               isDisabled={sendingOtp}
@@ -610,13 +643,13 @@ const Register = () => {
                       h="48px"
                       isLoading={verifyingOtp}
                       loadingText="Verifying..."
-                      bgGradient="linear(to-r, blue.500, purple.500)"
+                      bg="#d1a85d"
                       color="white"
                       fontWeight="600"
                       borderRadius="lg"
                       boxShadow="md"
                       _hover={{ 
-                        bgGradient: "linear(to-r, blue.600, purple.600)",
+                        bg: "#c19a4d",
                         boxShadow: "lg",
                         transform: "translateY(-1px)"
                       }}
@@ -660,12 +693,12 @@ const Register = () => {
                     borderRadius="lg"
                     _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.password ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.password ? 'red.500' : '#d1a85d',
                       bg: 'white'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.password ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.password ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                      borderColor: fieldErrors.password ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.password ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
                       bg: 'white'
                     }}
                     required
@@ -695,12 +728,12 @@ const Register = () => {
                     borderRadius="lg"
                     _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.confirmPassword ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.confirmPassword ? 'red.500' : '#d1a85d',
                       bg: 'white'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.confirmPassword ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.confirmPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                      borderColor: fieldErrors.confirmPassword ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.confirmPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
                       bg: 'white'
                     }}
                     required
@@ -740,13 +773,13 @@ const Register = () => {
                     h="52px"
                     isLoading={loading}
                     loadingText="Registering..."
-                    bgGradient="linear(to-r, blue.500, purple.500)"
+                    bg="#d1a85d"
                     color="white"
                     fontWeight="600"
                     borderRadius="xl"
                     boxShadow="md"
                     _hover={{ 
-                      bgGradient: "linear(to-r, blue.600, purple.600)",
+                      bg: "#c19a4d",
                       boxShadow: "lg",
                       transform: "translateY(-2px)"
                     }}
@@ -763,28 +796,11 @@ const Register = () => {
             </Box>
           )}
 
-          <Box textAlign="center" pt={2}>
-            <Text fontSize="sm" color="gray.800">
-              Already have an account?{' '}
-              <Link to="/login">
-                <Text 
-                  as="span" 
-                  color="blue.600" 
-                  fontWeight="600" 
-                  _hover={{ 
-                    color: 'blue.700',
-                    textDecoration: 'underline'
-                  }}
-                  transition="color 0.2s"
-                >
-                  Login
-                </Text>
-              </Link>
-            </Text>
-          </Box>
         </VStack>
+          </Box>
+        </Container>
       </Box>
-    </Box>
+    </AdminLayout>
   );
 };
 

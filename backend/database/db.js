@@ -49,7 +49,7 @@ export const initDatabase = async () => {
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('admin', 'placement_director')),
+        role TEXT NOT NULL CHECK(role IN ('admin', 'vc')),
         reset_token TEXT,
         reset_token_expiry INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -74,16 +74,16 @@ export const initDatabase = async () => {
       console.log('✅ Default admin user created (admin@example.com / admin123)');
     }
 
-    // Create default placement director if it doesn't exist
-    const pdExists = await db.get('SELECT id FROM users WHERE email = ?', ['pd@example.com']);
-    if (!pdExists) {
+    // Create default VC if it doesn't exist
+    const vcExists = await db.get('SELECT id FROM users WHERE email = ?', ['vc@example.com']);
+    if (!vcExists) {
       const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.default.hash('pd123', 10);
+      const hashedPassword = await bcrypt.default.hash('vc123', 10);
       await db.run(
         'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-        ['Placement Director', 'pd@example.com', hashedPassword, 'placement_director']
+        ['VC', 'vc@example.com', hashedPassword, 'vc']
       );
-      console.log('✅ Default placement director created (pd@example.com / pd123)');
+      console.log('✅ Default VC created (vc@example.com / vc123)');
     }
 
     console.log('✅ Database initialized successfully');

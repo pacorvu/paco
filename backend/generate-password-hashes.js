@@ -7,21 +7,21 @@ async function generateHashes() {
   console.log('Generating password hashes...\n');
   
   const adminPassword = 'admin123';
-  const pdPassword = 'pd123';
+  const vcPassword = 'vc123';
   
   const adminHash = await bcrypt.hash(adminPassword, 10);
-  const pdHash = await bcrypt.hash(pdPassword, 10);
+  const vcHash = await bcrypt.hash(vcPassword, 10);
   
   console.log('=== Copy these hashes to your Supabase migration ===\n');
   console.log('Admin User (password: admin123):');
   console.log(adminHash);
-  console.log('\nPlacement Director (password: pd123):');
-  console.log(pdHash);
+  console.log('\nVC (password: vc123):');
+  console.log(vcHash);
   console.log('\n=== SQL UPDATE statements ===\n');
   console.log(`-- Update admin password`);
   console.log(`UPDATE users SET password = '${adminHash}' WHERE email = 'admin@example.com';`);
-  console.log(`\n-- Update placement director password`);
-  console.log(`UPDATE users SET password = '${pdHash}' WHERE email = 'pd@example.com';`);
+  console.log(`\n-- Update VC password`);
+  console.log(`UPDATE users SET password = '${vcHash}' WHERE email = 'vc@example.com';`);
 }
 
 generateHashes().catch(console.error);

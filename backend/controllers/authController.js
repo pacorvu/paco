@@ -80,9 +80,9 @@ const generateToken = (id, role) => {
   });
 };
 
-// @desc    Send OTP for registration
+// @desc    Send OTP for registration (Admin only)
 // @route   POST /api/auth/register/send-otp
-// @access  Public
+// @access  Admin only
 export const sendRegistrationOtp = async (req, res) => {
   try {
     const { email } = req.body;
@@ -130,9 +130,9 @@ export const sendRegistrationOtp = async (req, res) => {
   }
 };
 
-// @desc    Register user with OTP verification
+// @desc    Register user with OTP verification (Admin only)
 // @route   POST /api/auth/register
-// @access  Public
+// @access  Admin only
 export const register = async (req, res) => {
   try {
     const { name, email, password, role, otpRequestId, otp } = req.body;
@@ -153,10 +153,10 @@ export const register = async (req, res) => {
     }
 
     // Validate role
-    if (role && !['admin', 'placement_director'].includes(role)) {
+    if (role && !['admin', 'vc'].includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role. Must be admin or placement_director'
+        message: 'Invalid role. Must be admin or vc'
       });
     }
 
@@ -190,7 +190,7 @@ export const register = async (req, res) => {
     // Create user in register table
     const result = await db.run(
       'INSERT INTO register (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, role || 'placement_director']
+      [name, email, hashedPassword, role || 'vc']
     );
 
     const userId = result.lastID;

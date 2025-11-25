@@ -27,9 +27,11 @@ import { protect, authorize } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 // Auth routes (public)
-router.post('/auth/register/send-otp', sendRegistrationOtp);
-router.post('/auth/register', register);
 router.post('/auth/login', login);
+
+// Auth routes (admin only - registration)
+router.post('/auth/register/send-otp', protect, authorize('admin'), sendRegistrationOtp);
+router.post('/auth/register', protect, authorize('admin'), register);
 router.post('/auth/forgot-password/send-otp', sendPasswordResetOtp);
 router.post('/auth/forgot-password', forgotPassword);
 router.post('/auth/reset-password', resetPassword);

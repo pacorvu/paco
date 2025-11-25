@@ -207,7 +207,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, role, otpRequestId, otp) => {
+  const register = async (name, email, password, role, otpRequestId, otp, isAdminRegistering = false) => {
     try {
       const response = await api.post('/auth/register', { 
         name, 
@@ -221,6 +221,13 @@ export const AuthProvider = ({ children }) => {
       if (response.data && response.data.success) {
         const { token: newToken, user: userData } = response.data;
         
+        // If admin is registering a new user, don't switch to the new user's session
+        // Keep the admin logged in as themselves
+        if (isAdminRegistering) {
+          return { success: true, user: userData, adminRegistering: true };
+        }
+        
+        // Normal registration (shouldn't happen now since it's admin-only, but keeping for safety)
         if (newToken && userData) {
           setToken(newToken);
           setUser(userData);
@@ -312,7 +319,7 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     isAuthenticated: !!token,
     isAdmin: user?.role === 'admin',
-    isPlacementDirector: user?.role === 'placement_director'
+    isVC: user?.role === 'vc'
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
