@@ -9,8 +9,7 @@ node_modules/
 .env.test
 
 # Build outputs
-dist/
-dist-ssr/
+
 out/
 *.local
 

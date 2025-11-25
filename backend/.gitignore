@@ -43,7 +43,6 @@ Desktop.ini
 *.code-workspace
 
 # Build files
-dist/
 out/
 
 # Coverage
