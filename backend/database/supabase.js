@@ -221,6 +221,12 @@ export const db = {
         throw error;
       }
       
+      // Log the insert attempt for debugging
+      console.log('[DATABASE] Inserting into table:', {
+        table,
+        insert: { ...insert, password: insert.password ? '[REDACTED]' : undefined }
+      });
+      
       const { data, error } = await supabase
         .from(table)
         .insert(insert)
@@ -236,7 +242,7 @@ export const db = {
           query: query,
           params: params,
           table: table,
-          insert: insert
+          insert: { ...insert, password: insert.password ? '[REDACTED]' : undefined }
         };
         
         console.error('='.repeat(80));
@@ -246,7 +252,9 @@ export const db = {
         
         const enhancedError = new Error(
           `Database insert failed: ${error.message || 'Internal server error'} ` +
-          `(Table: ${table}, Code: ${error.code || 'unknown'})`
+          `(Table: ${table}, Code: ${error.code || 'unknown'})` +
+          (error.hint ? ` - Hint: ${error.hint}` : '') +
+          (error.details ? ` - Details: ${JSON.stringify(error.details)}` : '')
         );
         enhancedError.originalError = error;
         enhancedError.code = error.code;
@@ -254,9 +262,34 @@ export const db = {
         throw enhancedError;
       }
       
+      if (!data) {
+        const error = new Error(`Insert succeeded but no data returned from table: ${table}`);
+        console.error('[DATABASE ERROR] Insert returned no data:', {
+          table,
+          data,
+          query,
+          params
+        });
+        throw error;
+      }
+      
+      // Handle different possible ID field names (id, ID, Id)
+      const idValue = data.id || data.ID || data.Id || null;
+      if (!idValue) {
+        const error = new Error(`Insert succeeded but no ID field found in returned data from table: ${table}`);
+        console.error('[DATABASE ERROR] Insert returned data without ID:', {
+          table,
+          data,
+          dataKeys: Object.keys(data),
+          query,
+          params
+        });
+        throw error;
+      }
+      
       // Return format similar to SQLite's run() method
       return {
-        lastID: data.id,
+        lastID: idValue,
         changes: 1
       };
     } catch (error) {
@@ -378,9 +411,13 @@ function parseQuery(sql, params) {
     // Simple parsing for "column = ?" pattern
     const eqMatch = whereClause.match(/(\w+)\s*=\s*\?/i);
     if (eqMatch && params.length > 0) {
+      // Find which parameter index corresponds to this condition
+      // Count the number of ? before this one
+      const beforeClause = sql.substring(0, sql.indexOf(whereClause));
+      const paramIndex = (beforeClause.match(/\?/g) || []).length;
       result.where.push({
         column: eqMatch[1],
-        value: params[0]
+        value: params[paramIndex] !== undefined ? params[paramIndex] : params[0]
       });
     }
   }
@@ -410,18 +447,50 @@ function parseQuery(sql, params) {
 }
 
 function parseInsertQuery(sql, params) {
-  const match = sql.match(/INSERT\s+INTO\s+(\w+)\s*\((.+?)\)\s*VALUES\s*\((.+?)\)/i);
+  // Normalize SQL - remove extra whitespace
+  sql = sql.trim().replace(/\s+/g, ' ');
+  
+  // More flexible regex pattern to handle various INSERT formats
+  const match = sql.match(/INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
   if (!match) {
-    throw new Error('Invalid INSERT query format');
+    const error = new Error(`Invalid INSERT query format: ${sql}`);
+    console.error('[QUERY PARSER] Failed to parse INSERT query:', {
+      sql,
+      params,
+      error: error.message
+    });
+    throw error;
   }
 
-  const table = match[1];
+  const table = match[1].trim();
   const columns = match[2].split(',').map(c => c.trim());
-  const values = params;
+  const valuesPlaceholders = match[3].split(',').map(v => v.trim());
+  
+  // Validate that we have the right number of params
+  const paramCount = valuesPlaceholders.filter(p => p === '?').length;
+  if (paramCount !== params.length) {
+    const error = new Error(
+      `Parameter count mismatch: expected ${paramCount} parameters, got ${params.length}`
+    );
+    console.error('[QUERY PARSER] Parameter count mismatch:', {
+      sql,
+      params,
+      expected: paramCount,
+      got: params.length
+    });
+    throw error;
+  }
 
   const insert = {};
+  let paramIndex = 0;
   columns.forEach((col, index) => {
-    insert[col] = values[index];
+    if (valuesPlaceholders[index] === '?') {
+      insert[col] = params[paramIndex];
+      paramIndex++;
+    } else {
+      // Handle non-parameter values (shouldn't happen in our case, but handle it)
+      insert[col] = valuesPlaceholders[index].replace(/['"]/g, '');
+    }
   });
 
   return { table, insert };

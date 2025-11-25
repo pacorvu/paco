@@ -188,18 +188,71 @@ export const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user in register table
-    const result = await db.run(
-      'INSERT INTO register (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, role || 'vc']
-    );
+    let result;
+    try {
+      result = await db.run(
+        'INSERT INTO register (name, email, password, role) VALUES (?, ?, ?, ?)',
+        [name, email, hashedPassword, role || 'vc']
+      );
+    } catch (dbError) {
+      logError('Registration - Database insert failed', dbError, req);
+      
+      // Check for specific error types
+      if (dbError.code === '23505') { // Unique constraint violation
+        return res.status(400).json({
+          success: false,
+          message: 'User already exists with this email'
+        });
+      }
+      
+      if (dbError.code === '23514') { // Check constraint violation
+        return res.status(400).json({
+          success: false,
+          message: `Invalid role. Role must be 'admin' or 'vc'`
+        });
+      }
+      
+      // Generic database error
+      return res.status(500).json({
+        success: false,
+        message: 'Error creating user account',
+        error: process.env.NODE_ENV === 'development' ? dbError.message : 'Internal server error'
+      });
+    }
+
+    if (!result || !result.lastID) {
+      logError('Registration - Insert returned no user ID', new Error('No lastID returned'), req);
+      return res.status(500).json({
+        success: false,
+        message: 'Error creating user account - no user ID returned'
+      });
+    }
 
     const userId = result.lastID;
 
     // Get created user (without password)
-    const user = await db.get(
-      'SELECT id, name, email, role, created_at FROM register WHERE id = ?',
-      [userId]
-    );
+    let user;
+    try {
+      user = await db.get(
+        'SELECT id, name, email, role, created_at FROM register WHERE id = ?',
+        [userId]
+      );
+    } catch (fetchError) {
+      logError('Registration - Failed to fetch created user', fetchError, req);
+      return res.status(500).json({
+        success: false,
+        message: 'User created but failed to retrieve user details',
+        error: process.env.NODE_ENV === 'development' ? fetchError.message : 'Internal server error'
+      });
+    }
+
+    if (!user) {
+      logError('Registration - Created user not found', new Error('User not found after creation'), req);
+      return res.status(500).json({
+        success: false,
+        message: 'User created but not found in database'
+      });
+    }
 
     // Generate token
     const token = generateToken(user.id, user.role);
