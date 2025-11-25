@@ -62,7 +62,7 @@ ChartJS.register(
 
 
 const Dashboard = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isVC } = useAuth();
   const [overallStats, setOverallStats] = useState(null);
   const [schoolStats, setSchoolStats] = useState([]);
   const [schoolDistribution, setSchoolDistribution] = useState([]);
@@ -73,6 +73,7 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [isTotalOffersHovered, setIsTotalOffersHovered] = useState(false);
   const [isTotalPlacedHovered, setIsTotalPlacedHovered] = useState(false);
+  const [failedLogos, setFailedLogos] = useState(new Set());
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -176,17 +177,38 @@ const Dashboard = () => {
     }
   };
 
-  // Generate color for hiring partner logos
-  const getPartnerColor = (index) => {
-    const colors = ['4c51bf', 'f97316', '10b981', '6366f1', 'ef4444', '3b82f6', '14b8a6', 'cc5e2e', '8b5cf6', 'ec4899'];
-    return colors[index % colors.length];
+  // Normalize company name for comparison (trim, lowercase, and remove trailing dashes and numbers)
+  const normalizeCompanyName = (companyName) => {
+    if (!companyName) return '';
+    // Trim, lowercase, and remove trailing dashes/hyphens and numbers
+    return companyName.trim().toLowerCase().replace(/-*\d+$/, '');
+  };
+
+  // Convert company name to logo filename format (no spaces, lowercase, .png)
+  const getCompanyLogoFilename = (companyName) => {
+    if (!companyName) return '';
+    return companyName
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/[^a-z0-9]/g, '') + '.png';
+  };
+
+  // Get logo path for a company
+  const getCompanyLogoPath = (companyName) => {
+    const filename = getCompanyLogoFilename(companyName);
+    return `/company_logos/${filename}`;
   };
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isVC) {
       fetchPlacementStats();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isVC]);
+
+  // Reset failed logos when hiring partners data changes
+  useEffect(() => {
+    setFailedLogos(new Set());
+  }, [hiringPartners]);
 
   const fetchPlacementStats = async () => {
     try {
@@ -634,6 +656,7 @@ const Dashboard = () => {
                     borderTop="1px solid"
                     borderColor="gray.100"
                     position="relative"
+                    width="100%"
                     _before={{
                       content: '""',
                       position: 'absolute',
@@ -657,72 +680,101 @@ const Dashboard = () => {
                       pointerEvents: 'none'
                     }}
                   >
-                    <Box
-                      display="flex"
-                      whiteSpace="nowrap"
-                      width="200%"
-                      sx={{
-                        animation: 'scroll-left 40s linear infinite',
-                        '&:hover': {
-                          animationPlayState: 'paused'
+                    {hiringPartners.length > 0 ? (() => {
+                      // Deduplicate companies by normalizing names (trim, lowercase, remove trailing dashes and numbers)
+                      const normalizedMap = new Map();
+                      hiringPartners.forEach(companyName => {
+                        if (companyName) {
+                          const normalized = normalizeCompanyName(companyName);
+                          if (!normalizedMap.has(normalized)) {
+                            normalizedMap.set(normalized, companyName.trim());
+                          }
                         }
-                      }}
-                    >
-                      {/* Logo Set 1 */}
-                      {hiringPartners.length > 0 ? (
-                        <>
-                          {hiringPartners.map((companyName, index) => {
-                            const color = getPartnerColor(index);
-                            return (
-                              <Box key={`set1-${companyName}-${index}`} flexShrink={0} px={8} display="inline-block">
-                                <Image
-                                  src={`https://placehold.co/180x70/${color}/ffffff?text=${encodeURIComponent(companyName)}`}
-                                  alt={`${companyName} Logo`}
-                                  h={16}
-                                  w="auto"
-                                  objectFit="contain"
-                                  borderRadius="lg"
-                                  p={3}
-                                  border="2px solid"
-                                  borderColor="gray.300"
-                                  boxShadow="md"
-                                  onError={(e) => {
-                                    e.target.src = `https://placehold.co/180x70/${color}/ffffff?text=Co${index + 1}`;
-                                  }}
-                                />
-                              </Box>
-                            );
-                          })}
+                      });
+                      const uniqueCompanies = Array.from(normalizedMap.values());
+
+                      // Render logo/item component
+                      const renderCompanyItem = (companyName, setIndex, itemIndex) => {
+                        const logoPath = getCompanyLogoPath(companyName);
+                        const logoFailed = failedLogos.has(companyName);
+                        return (
+                          <Box 
+                            key={`set${setIndex}-${companyName}-${itemIndex}`} 
+                            flexShrink={0} 
+                            px={8} 
+                            display="inline-flex" 
+                            alignItems="center" 
+                            justifyContent="center" 
+                            minH="64px"
+                            minW="120px"
+                          >
+                            {logoFailed ? (
+                              <Text
+                                fontSize="sm"
+                                fontWeight="medium"
+                                color="gray.600"
+                                textAlign="center"
+                                whiteSpace="nowrap"
+                                maxW="180px"
+                                overflow="hidden"
+                                textOverflow="ellipsis"
+                              >
+                                {companyName}
+                              </Text>
+                            ) : (
+                              <Image
+                                src={logoPath}
+                                alt={`${companyName} Logo`}
+                                h={16}
+                                w="auto"
+                                maxW="180px"
+                                objectFit="contain"
+                                bg="transparent"
+                                onError={() => {
+                                  // Track failed logo and update state
+                                  setFailedLogos(prev => new Set([...prev, companyName]));
+                                }}
+                              />
+                            )}
+                          </Box>
+                        );
+                      };
+
+                      return (
+                        <Box
+                          display="flex"
+                          whiteSpace="nowrap"
+                          width="max-content"
+                          sx={{
+                            '@keyframes scroll-left': {
+                              '0%': {
+                                transform: 'translateX(0)'
+                              },
+                              '100%': {
+                                transform: 'translateX(calc(-100% / 2))'
+                              }
+                            },
+                            animation: 'scroll-left 40s linear infinite',
+                            '&:hover': {
+                              animationPlayState: 'paused'
+                            }
+                          }}
+                        >
+                          {/* Logo Set 1 */}
+                          {uniqueCompanies.map((companyName, index) => 
+                            renderCompanyItem(companyName, 1, index)
+                          )}
                           {/* Logo Set 2 (Duplicated for seamless loop) */}
-                          {hiringPartners.map((companyName, index) => {
-                            const color = getPartnerColor(index);
-                            return (
-                              <Box key={`set2-${companyName}-${index}`} flexShrink={0} px={8} display="inline-block">
-                                <Image
-                                  src={`https://placehold.co/180x70/${color}/ffffff?text=${encodeURIComponent(companyName)}`}
-                                  alt={`${companyName} Logo`}
-                                  h={16}
-                                  w="auto"
-                                  objectFit="contain"
-                                  borderRadius="lg"
-                                  p={3}
-                                  border="2px solid"
-                                  borderColor="gray.300"
-                                  boxShadow="md"
-                                  onError={(e) => {
-                                    e.target.src = `https://placehold.co/180x70/${color}/ffffff?text=Co${index + 1}`;
-                                  }}
-                                />
-                              </Box>
-                            );
-                          })}
-                        </>
-                      ) : (
-                        <Text color="gray.500" textAlign="center" width="100%">
-                          No hiring partners data available
-                        </Text>
-                      )}
-                    </Box>
+                          {uniqueCompanies.map((companyName, index) => 
+                            renderCompanyItem(companyName, 2, index)
+                          )}
+                        </Box>
+                      );
+                    })() : (
+                      <Text color="gray.500" textAlign="center" width="100%">
+                        No hiring partners data available
+                      </Text>
+                    )}
                   </Box>
                 </Box>
 

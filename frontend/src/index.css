@@ -175,10 +175,10 @@ html {
 
 /* Logo Loop Animation */
 @keyframes scroll-left {
-  from {
+  0% {
     transform: translateX(0);
   }
-  to {
-    transform: translateX(-50%);
+  100% {
+    transform: translateX(calc(-100% / 2));
   }
 }

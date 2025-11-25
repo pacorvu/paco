@@ -124,8 +124,21 @@ export const getOverallPlacementStats = async (req, res) => {
 
     if (companiesError) throw companiesError;
 
-    const uniqueCompanies = new Set(companiesData?.map(offer => offer.company_name) || []);
-    const uniqueHiringCompanies = uniqueCompanies.size;
+    // Normalize company names: trim, lowercase, and remove trailing dashes and numbers
+    const normalizeCompanyName = (name) => {
+      if (!name) return '';
+      // Trim, lowercase, and remove trailing dashes/hyphens and numbers
+      return name.trim().toLowerCase().replace(/-*\d+$/, '');
+    };
+    
+    const normalizedCompanies = new Set();
+    companiesData?.forEach(offer => {
+      if (offer.company_name) {
+        const normalized = normalizeCompanyName(offer.company_name);
+        normalizedCompanies.add(normalized);
+      }
+    });
+    const uniqueHiringCompanies = normalizedCompanies.size;
 
     // Get highest and lowest CTC from placed offers only
     const { data: ctcData, error: ctcError } = await supabase
@@ -451,8 +464,28 @@ export const getHiringPartners = async (req, res) => {
 
     if (companiesError) throw companiesError;
 
-    // Get unique company names
-    const uniqueCompanies = [...new Set(companiesData?.map(offer => offer.company_name).filter(Boolean))];
+    // Normalize company names: trim, lowercase, and remove trailing dashes and numbers
+    // Use a Map to track normalized -> original name mapping (keep the first occurrence)
+    const normalizedMap = new Map();
+    
+    const normalizeCompanyName = (name) => {
+      if (!name) return '';
+      // Trim, lowercase, and remove trailing dashes/hyphens and numbers
+      return name.trim().toLowerCase().replace(/-*\d+$/, '');
+    };
+    
+    companiesData?.forEach(offer => {
+      if (offer.company_name) {
+        const normalized = normalizeCompanyName(offer.company_name);
+        // Only keep the first occurrence of each normalized name
+        if (!normalizedMap.has(normalized)) {
+          normalizedMap.set(normalized, offer.company_name.trim());
+        }
+      }
+    });
+
+    // Get unique company names (using original names from the map)
+    const uniqueCompanies = Array.from(normalizedMap.values());
 
     res.status(200).json({
       success: true,
