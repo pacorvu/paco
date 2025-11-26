@@ -67,7 +67,9 @@ export async function createOtpChallenge({ email, purpose, loginId }) {
       await sendOtpEmail(email, otpValue);
     } catch (emailError) {
       console.error('[OTP Service] Failed to send OTP email:', emailError);
-      throw new Error('Failed to send OTP email. Please try again.');
+      // Preserve the original error message for better debugging
+      const errorMessage = emailError?.message || 'Failed to send OTP email. Please try again.';
+      throw new Error(errorMessage);
     }
 
     return { 
