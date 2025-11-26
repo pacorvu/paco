@@ -154,23 +154,13 @@ const ForgotPassword = () => {
     <Box
       w="100%"
       minH="100vh"
-      bgGradient="linear(to-br, blue.50, purple.50, teal.50)"
+      bg="#172e36"
       display="flex"
       alignItems="center"
       justifyContent="center"
       py={8}
       px={4}
       position="relative"
-      _before={{
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'radial-gradient(circle at 20% 50%, rgba(56, 189, 248, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.1) 0%, transparent 50%)',
-        pointerEvents: 'none'
-      }}
     >
       <Box
         maxW="md"
@@ -189,9 +179,8 @@ const ForgotPassword = () => {
           <Box textAlign="center" w="100%">
             <Heading 
               as="h1" 
-              size="xl"
-              bgGradient="linear(to-r, blue.600, purple.600)"
-              bgClip="text"
+              size="xl" 
+              color="#d1a85d"
               fontWeight="bold"
               mb={2}
             >
@@ -251,23 +240,25 @@ const ForgotPassword = () => {
                     size="md"
                     h="48px"
                     borderColor={fieldErrors.email ? 'red.400' : 'gray.300'}
-                    borderWidth="2px"
-                    color="gray.900"
+                    color="gray.800"
+                    bg="white"
                     borderRadius="xl"
+                    _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.email ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.email ? 'red.500' : '#d1a85d',
+                      bg: 'white',
                       boxShadow: 'sm'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.email ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.email ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(56, 189, 248, 0.2)',
-                      outline: 'none'
+                      borderColor: fieldErrors.email ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.email ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
+                      bg: 'white'
                     }}
                     transition="all 0.2s"
                     required
                   />
                   {fieldErrors.email && (
-                    <Text color="red.500" fontSize="xs" mt={1}>
+                    <Text color="red.500" fontSize="xs" mt={1.5} ml={1}>
                       {fieldErrors.email}
                     </Text>
                   )}
@@ -280,13 +271,13 @@ const ForgotPassword = () => {
                   h="52px"
                   isLoading={loading}
                   loadingText="Sending..."
-                  bgGradient="linear(to-r, blue.500, purple.500)"
+                  bg="#d1a85d"
                   color="white"
                   fontWeight="600"
                   borderRadius="xl"
                   boxShadow="md"
                   _hover={{ 
-                    bgGradient: "linear(to-r, blue.600, purple.600)",
+                    bg: "#c19a4d",
                     boxShadow: "lg",
                     transform: "translateY(-2px)"
                   }}
@@ -304,18 +295,18 @@ const ForgotPassword = () => {
             <Box as="form" onSubmit={handleResetPassword} w="100%">
               <VStack spacing={4}>
                 {resetToken && (
-                  <Box w="100%" p={4} bg="blue.50" borderRadius="xl" border="1px solid" borderColor="blue.200" boxShadow="sm">
-                    <Text fontSize="xs" mb={2} color="blue.700" fontWeight="600">Reset Token:</Text>
+                  <Box w="100%" p={4} bg="yellow.50" borderRadius="xl" border="1px solid" borderColor="yellow.200" boxShadow="sm">
+                    <Text fontSize="xs" mb={2} color="yellow.800" fontWeight="600">Reset Token:</Text>
                     <Code 
                       fontSize="xs" 
                       wordBreak="break-all" 
                       p={3} 
                       display="block"
                       bg="white"
-                      color="blue.800"
+                      color="yellow.900"
                       borderRadius="lg"
                       border="1px solid"
-                      borderColor="blue.200"
+                      borderColor="yellow.200"
                     >
                       {resetToken}
                     </Code>
@@ -334,23 +325,25 @@ const ForgotPassword = () => {
                     size="md"
                     h="48px"
                     borderColor={fieldErrors.resetToken ? 'red.400' : 'gray.300'}
-                    borderWidth="2px"
-                    color="gray.900"
+                    color="gray.800"
+                    bg="white"
                     borderRadius="xl"
+                    _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.resetToken ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.resetToken ? 'red.500' : '#d1a85d',
+                      bg: 'white',
                       boxShadow: 'sm'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.resetToken ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.resetToken ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(56, 189, 248, 0.2)',
-                      outline: 'none'
+                      borderColor: fieldErrors.resetToken ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.resetToken ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
+                      bg: 'white'
                     }}
                     transition="all 0.2s"
                     required
                   />
                   {fieldErrors.resetToken && (
-                    <Text color="red.500" fontSize="xs" mt={1}>
+                    <Text color="red.500" fontSize="xs" mt={1.5} ml={1}>
                       {fieldErrors.resetToken}
                     </Text>
                   )}
@@ -368,23 +361,25 @@ const ForgotPassword = () => {
                     size="md"
                     h="48px"
                     borderColor={fieldErrors.newPassword ? 'red.400' : 'gray.300'}
-                    borderWidth="2px"
-                    color="gray.900"
+                    color="gray.800"
+                    bg="white"
                     borderRadius="xl"
+                    _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.newPassword ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.newPassword ? 'red.500' : '#d1a85d',
+                      bg: 'white',
                       boxShadow: 'sm'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.newPassword ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.newPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(56, 189, 248, 0.2)',
-                      outline: 'none'
+                      borderColor: fieldErrors.newPassword ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.newPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
+                      bg: 'white'
                     }}
                     transition="all 0.2s"
                     required
                   />
                   {fieldErrors.newPassword && (
-                    <Text color="red.500" fontSize="xs" mt={1}>
+                    <Text color="red.500" fontSize="xs" mt={1.5} ml={1}>
                       {fieldErrors.newPassword}
                     </Text>
                   )}
@@ -402,23 +397,25 @@ const ForgotPassword = () => {
                     size="md"
                     h="48px"
                     borderColor={fieldErrors.confirmPassword ? 'red.400' : 'gray.300'}
-                    borderWidth="2px"
-                    color="gray.900"
+                    color="gray.800"
+                    bg="white"
                     borderRadius="xl"
+                    _placeholder={{ color: 'gray.400' }}
                     _hover={{ 
-                      borderColor: fieldErrors.confirmPassword ? 'red.500' : 'blue.400',
+                      borderColor: fieldErrors.confirmPassword ? 'red.500' : '#d1a85d',
+                      bg: 'white',
                       boxShadow: 'sm'
                     }}
                     _focus={{
-                      borderColor: fieldErrors.confirmPassword ? 'red.500' : 'blue.500',
-                      boxShadow: fieldErrors.confirmPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(56, 189, 248, 0.2)',
-                      outline: 'none'
+                      borderColor: fieldErrors.confirmPassword ? 'red.500' : '#d1a85d',
+                      boxShadow: fieldErrors.confirmPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
+                      bg: 'white'
                     }}
                     transition="all 0.2s"
                     required
                   />
                   {fieldErrors.confirmPassword && (
-                    <Text color="red.500" fontSize="xs" mt={1}>
+                    <Text color="red.500" fontSize="xs" mt={1.5} ml={1}>
                       {fieldErrors.confirmPassword}
                     </Text>
                   )}
@@ -431,13 +428,13 @@ const ForgotPassword = () => {
                   h="52px"
                   isLoading={loading}
                   loadingText="Resetting..."
-                  bgGradient="linear(to-r, blue.500, purple.500)"
+                  bg="#d1a85d"
                   color="white"
                   fontWeight="600"
                   borderRadius="xl"
                   boxShadow="md"
                   _hover={{ 
-                    bgGradient: "linear(to-r, blue.600, purple.600)",
+                    bg: "#c19a4d",
                     boxShadow: "lg",
                     transform: "translateY(-2px)"
                   }}
@@ -456,11 +453,11 @@ const ForgotPassword = () => {
           <Box textAlign="center" pt={2}>
             <Link to="/login">
               <Text 
-                color="blue.600" 
+                color="#d1a85d" 
                 fontSize="sm" 
                 fontWeight="500"
                 _hover={{ 
-                  color: 'blue.700', 
+                  color: '#c19a4d', 
                   textDecoration: 'underline' 
                 }}
                 transition="color 0.2s"

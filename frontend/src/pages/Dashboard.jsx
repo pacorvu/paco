@@ -313,7 +313,7 @@ const Dashboard = () => {
                 >
                   <Flex justify="space-between" align="center">
                     <Text fontSize="lg" fontWeight="medium" textTransform="uppercase" letterSpacing="widest" opacity={0.8}>
-                      Total Students Enrolled
+                      Total Eligible Students
                     </Text>
                     <Icon as={FiUsers} boxSize={8} color="#d1a85d" opacity={0.9} />
                   </Flex>
