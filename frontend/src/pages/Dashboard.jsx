@@ -62,7 +62,7 @@ ChartJS.register(
 
 
 const Dashboard = () => {
-  const { user, isAdmin, isVC } = useAuth();
+  const { user, isAdmin, isVC, isGuest } = useAuth();
   const [overallStats, setOverallStats] = useState(null);
   const [schoolStats, setSchoolStats] = useState([]);
   const [schoolDistribution, setSchoolDistribution] = useState([]);
@@ -200,10 +200,10 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (isAdmin || isVC) {
+    if (isAdmin || isVC || isGuest) {
       fetchPlacementStats();
     }
-  }, [isAdmin, isVC]);
+  }, [isAdmin, isVC, isGuest]);
 
   // Reset failed logos when hiring partners data changes
   useEffect(() => {

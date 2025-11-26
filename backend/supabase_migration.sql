@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS register (
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('admin', 'vc')),
+  role TEXT NOT NULL CHECK(role IN ('admin', 'vc', 'guest')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

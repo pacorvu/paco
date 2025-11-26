@@ -509,6 +509,7 @@ const Register = () => {
                   >
                     <option value="vc">VC</option>
                     <option value="admin">Admin</option>
+                    <option value="guest">Guest</option>
                   </Box>
                 </Box>
 

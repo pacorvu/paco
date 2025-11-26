@@ -153,10 +153,10 @@ export const register = async (req, res) => {
     }
 
     // Validate role
-    if (role && !['admin', 'vc'].includes(role)) {
+    if (role && !['admin', 'vc', 'guest'].includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role. Must be admin or vc'
+        message: 'Invalid role. Must be admin, vc, or guest'
       });
     }
 
@@ -208,7 +208,7 @@ export const register = async (req, res) => {
       if (dbError.code === '23514') { // Check constraint violation
         return res.status(400).json({
           success: false,
-          message: `Invalid role. Role must be 'admin' or 'vc'`
+          message: `Invalid role. Role must be 'admin', 'vc', or 'guest'`
         });
       }
       

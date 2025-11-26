@@ -49,7 +49,7 @@ export const initDatabase = async () => {
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('admin', 'vc')),
+        role TEXT NOT NULL CHECK(role IN ('admin', 'vc', 'guest')),
         reset_token TEXT,
         reset_token_expiry INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

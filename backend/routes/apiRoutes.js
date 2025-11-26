@@ -45,13 +45,13 @@ router.get('/db/tables/:tableName/schema', protect, authorize('admin'), getTable
 router.get('/db/tables/:tableName/data', protect, authorize('admin'), getTableDataInfo);
 router.post('/db/query', protect, authorize('admin'), executeCustomQuery);
 
-// Placement dashboard routes (admin and VC)
-router.get('/dashboard/placement/overall', protect, authorize('admin', 'vc'), getOverallPlacementStats);
-router.get('/dashboard/placement/by-school', protect, authorize('admin', 'vc'), getPlacementBySchool);
-router.get('/dashboard/placement/school-distribution', protect, authorize('admin', 'vc'), getSchoolDistribution);
-router.get('/dashboard/placement/ctc-distribution', protect, authorize('admin', 'vc'), getCTCDistribution);
-router.get('/dashboard/placement/hiring-partners', protect, authorize('admin', 'vc'), getHiringPartners);
-router.get('/dashboard/placement/ctc-stats', protect, authorize('admin', 'vc'), getCTCStats);
+// Placement dashboard routes (admin, VC, and guest)
+router.get('/dashboard/placement/overall', protect, authorize('admin', 'vc', 'guest'), getOverallPlacementStats);
+router.get('/dashboard/placement/by-school', protect, authorize('admin', 'vc', 'guest'), getPlacementBySchool);
+router.get('/dashboard/placement/school-distribution', protect, authorize('admin', 'vc', 'guest'), getSchoolDistribution);
+router.get('/dashboard/placement/ctc-distribution', protect, authorize('admin', 'vc', 'guest'), getCTCDistribution);
+router.get('/dashboard/placement/hiring-partners', protect, authorize('admin', 'vc', 'guest'), getHiringPartners);
+router.get('/dashboard/placement/ctc-stats', protect, authorize('admin', 'vc', 'guest'), getCTCStats);
 
 // Example route
 router.get('/test', (req, res) => {
