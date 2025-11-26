@@ -163,6 +163,21 @@ export async function sendOtpEmail(recipientEmail, otp) {
 
     let stdout = '';
     let stderr = '';
+    let isResolved = false;
+
+    // Set a timeout (30 seconds) to prevent hanging
+    const timeout = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        child.kill('SIGTERM');
+        const totalDuration = Date.now() - totalStartTime;
+        console.error(`[OTP Email] ❌ Timeout after ${totalDuration}ms (30s limit)`);
+        reject(new Error(
+          'Email sending timed out. The connection to the email server took too long. ' +
+          'This may be due to network issues or firewall restrictions. Please try again later.'
+        ));
+      }
+    }, 30000); // 30 second timeout
 
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
@@ -173,9 +188,15 @@ export async function sendOtpEmail(recipientEmail, otp) {
     });
 
     child.on('close', (code) => {
+      clearTimeout(timeout);
+      
+      if (isResolved) {
+        return; // Already handled by timeout
+      }
       const totalDuration = Date.now() - totalStartTime;
 
       if (code === 0) {
+        isResolved = true;
         console.log(`[OTP Email] ✅ Sent successfully to ${recipientEmail}`);
         console.log(`[OTP Email] ⏱️  Total time: ${totalDuration}ms (${(totalDuration / 1000).toFixed(2)}s)`);
         if (stdout.trim()) {
@@ -183,6 +204,7 @@ export async function sendOtpEmail(recipientEmail, otp) {
         }
         resolve();
       } else {
+        isResolved = true;
         const errorMessage = stderr.trim() || stdout.trim() || 
           `send_otp_email.py exited with code ${code ?? 'unknown'}`;
         console.error(`[OTP Email] ❌ Failed to send to ${recipientEmail} after ${totalDuration}ms`);
@@ -199,6 +221,13 @@ export async function sendOtpEmail(recipientEmail, otp) {
             'Authentication error: Check your email and app password. ' +
             'Make sure GMAIL_USER and GMAIL_APP_PASS are set correctly.'
           ));
+        } else if (errorMessage.includes('Network error') || errorMessage.includes('Network is unreachable') || 
+                   errorMessage.includes('Connection refused') || errorMessage.includes('Connection error')) {
+          reject(new Error(
+            'Network error: Cannot connect to email server. ' +
+            'Please check your network connection, firewall settings, or try again later. ' +
+            'If this persists, contact your system administrator.'
+          ));
         } else if (errorMessage.includes('GMAIL_USER') || errorMessage.includes('GMAIL_APP_PASS')) {
           reject(new Error(
             'Email credentials are not set. Please set GMAIL_USER and GMAIL_APP_PASS environment variables.'
@@ -214,6 +243,13 @@ export async function sendOtpEmail(recipientEmail, otp) {
     });
 
     child.on('error', (err) => {
+      clearTimeout(timeout);
+      
+      if (isResolved) {
+        return; // Already handled by timeout or other error
+      }
+      
+      isResolved = true;
       const totalDuration = Date.now() - totalStartTime;
       console.error(`[OTP Email] ❌ Failed to execute Python script after ${totalDuration}ms`);
       console.error(`[OTP Email] Error code: ${err.code}`);

@@ -6,9 +6,10 @@ def send_email(to_email, otp, from_email, from_password):
     """
     Connects to the Gmail SMTP server and sends a one-time password.
     """
+    s = None
     try:
-        # Create an SMTP session
-        s = smtplib.SMTP('smtp.gmail.com', 587)
+        # Create an SMTP session with timeout (15 seconds)
+        s = smtplib.SMTP('smtp.gmail.com', 587, timeout=15)
         s.starttls()  # Start TLS for security
 
         # Login to your email account using the app password
@@ -35,11 +36,27 @@ This code will expire in 10 minutes.
     except smtplib.SMTPAuthenticationError:
         print("Authentication error: Check your GMAIL_USER and GMAIL_APP_PASS in the .env file.", file=sys.stderr)
         sys.exit(1)
+    except (OSError, ConnectionError) as e:
+        # Handle network errors (unreachable, connection refused, etc.)
+        error_msg = str(e)
+        if 'Network is unreachable' in error_msg or '101' in error_msg:
+            print(f"Network error: Cannot reach SMTP server. Please check your network connection or firewall settings.", file=sys.stderr)
+        elif 'Connection refused' in error_msg or '111' in error_msg:
+            print(f"Connection error: SMTP server refused connection. Port 587 may be blocked.", file=sys.stderr)
+        else:
+            print(f"Network error: {e}", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
         print(f"An error occurred while sending email: {e}", file=sys.stderr)
         sys.exit(1)
     finally:
-        s.quit()  # Always close the SMTP session
+        # Only try to quit if SMTP connection was successfully established
+        if s is not None:
+            try:
+                s.quit()
+            except Exception:
+                # Ignore errors when closing - connection may already be closed
+                pass
 
 # This block runs when the script is executed directly from the command line
 if __name__ == "__main__":
