@@ -24,7 +24,8 @@ import {
   useColorModeValue,
   Icon,
   Image,
-  Container
+  Container,
+  Button
 } from '@chakra-ui/react';
 import {
   ViewIcon,
@@ -62,7 +63,7 @@ ChartJS.register(
 
 
 const Dashboard = () => {
-  const { user, isAdmin, isVC, isGuest } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const [overallStats, setOverallStats] = useState(null);
   const [schoolStats, setSchoolStats] = useState([]);
   const [schoolDistribution, setSchoolDistribution] = useState([]);
@@ -74,6 +75,7 @@ const Dashboard = () => {
   const [isTotalOffersHovered, setIsTotalOffersHovered] = useState(false);
   const [isTotalPlacedHovered, setIsTotalPlacedHovered] = useState(false);
   const [failedLogos, setFailedLogos] = useState(new Set());
+  const [selectedSchools, setSelectedSchools] = useState([]);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -200,20 +202,42 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (isAdmin || isVC || isGuest) {
-      fetchPlacementStats();
+    if (isAdmin || isSuperAdmin) {
+      // Check if all schools are selected or none selected
+      const allSelected = selectedSchools.length === schoolDistribution.length && schoolDistribution.length > 0;
+      const noneSelected = selectedSchools.length === 0;
+      const showAll = allSelected || noneSelected;
+      
+      // Fetch with school filter if schools are selected (but not all)
+      // If all or none selected, fetch all data
+      const schoolFilter = !showAll && selectedSchools.length > 0 
+        ? selectedSchools.join(',') 
+        : null;
+      fetchPlacementStats(schoolFilter);
     }
-  }, [isAdmin, isVC, isGuest]);
+  }, [isAdmin, isSuperAdmin, selectedSchools, schoolDistribution.length]);
 
   // Reset failed logos when hiring partners data changes
   useEffect(() => {
     setFailedLogos(new Set());
   }, [hiringPartners]);
 
-  const fetchPlacementStats = async () => {
+  const fetchPlacementStats = async (schoolFilter = null) => {
     try {
       setLoading(true);
       setError('');
+
+      const ctcUrl = schoolFilter 
+        ? `/dashboard/placement/ctc-distribution?school=${encodeURIComponent(schoolFilter)}`
+        : '/dashboard/placement/ctc-distribution';
+
+      const ctcStatsUrl = schoolFilter
+        ? `/dashboard/placement/ctc-stats?school=${encodeURIComponent(schoolFilter)}`
+        : '/dashboard/placement/ctc-stats';
+
+      const hiringPartnersUrl = schoolFilter
+        ? `/dashboard/placement/hiring-partners?school=${encodeURIComponent(schoolFilter)}`
+        : '/dashboard/placement/hiring-partners';
 
       const [
         overallResponse,
@@ -226,9 +250,9 @@ const Dashboard = () => {
         api.get('/dashboard/placement/overall'),
         api.get('/dashboard/placement/by-school'),
         api.get('/dashboard/placement/school-distribution'),
-        api.get('/dashboard/placement/ctc-distribution'),
-        api.get('/dashboard/placement/hiring-partners'),
-        api.get('/dashboard/placement/ctc-stats')
+        api.get(ctcUrl),
+        api.get(hiringPartnersUrl),
+        api.get(ctcStatsUrl)
       ]);
 
       setOverallStats(overallResponse.data.data);
@@ -276,6 +300,100 @@ const Dashboard = () => {
     };
   }).sort((a, b) => (b.percent || 0) - (a.percent || 0)); // Sort by placement percentage descending
 
+  // Check if all schools are selected or none selected
+  const allSchoolsSelected = selectedSchools.length === schoolDistribution.length && schoolDistribution.length > 0;
+  const noSchoolsSelected = selectedSchools.length === 0;
+  const showAllData = allSchoolsSelected || noSchoolsSelected;
+
+  // Get aggregated stats for selected schools
+  const getSelectedSchoolsStats = () => {
+    if (showAllData) return null;
+    
+    const selectedStats = schoolStats.filter(stat => selectedSchools.includes(stat.school));
+    if (selectedStats.length === 0) return null;
+
+    const aggregated = selectedStats.reduce((acc, stat) => {
+      acc.totalStudents += stat.totalStudents || 0;
+      acc.placedStudents += stat.placedStudents || 0;
+      return acc;
+    }, { totalStudents: 0, placedStudents: 0 });
+
+    const placementPercent = aggregated.totalStudents > 0
+      ? ((aggregated.placedStudents / aggregated.totalStudents) * 100).toFixed(2)
+      : 0;
+
+    return {
+      totalStudents: aggregated.totalStudents,
+      placedStudents: aggregated.placedStudents,
+      placementPercent: parseFloat(placementPercent)
+    };
+  };
+
+  const selectedSchoolsStats = getSelectedSchoolsStats();
+
+  // Calculate filtered metrics based on selected schools
+  const displayStats = !showAllData && selectedSchoolsStats ? {
+    totalStudents: selectedSchoolsStats.totalStudents || 0,
+    totalOffers: selectedSchoolsStats.placedStudents || 0,
+    totalOffersPercent: selectedSchoolsStats.placementPercent || 0,
+    totalPlacedCombined: selectedSchoolsStats.placedStudents || 0,
+    totalPlacedCombinedPercent: selectedSchoolsStats.placementPercent || 0,
+    totalPlaced: selectedSchoolsStats.placedStudents || 0,
+    totalPlacedPercent: selectedSchoolsStats.placementPercent || 0,
+    totalInternships: 0,
+    totalInternshipsPercent: 0,
+    totalInternshipCumFulltime: 0,
+    totalInternshipCumFulltimePercent: 0,
+    placedStudents: selectedSchoolsStats.placedStudents || 0,
+    placementRate: selectedSchoolsStats.placementPercent || 0,
+    uniqueCompanies: hiringPartners?.length || 0,
+    highestCTC: ctcStats?.highestCTC || 0,
+    averageCTC: ctcStats?.averageCTC || 0,
+    medianCTC: ctcStats?.medianCTC || 0,
+    lowestCTC: ctcStats?.lowestCTC || 0,
+  } : {
+    totalStudents,
+    totalOffers,
+    totalOffersPercent,
+    totalPlacedCombined,
+    totalPlacedCombinedPercent,
+    totalPlaced,
+    totalPlacedPercent,
+    totalInternships,
+    totalInternshipsPercent,
+    totalInternshipCumFulltime,
+    totalInternshipCumFulltimePercent,
+    placedStudents,
+    placementRate,
+    uniqueCompanies,
+    highestCTC,
+    averageCTC,
+    medianCTC,
+    lowestCTC,
+  };
+
+  // Filter school distribution and placement by selected schools
+  const displaySchoolDistribution = showAllData
+    ? schoolDistribution
+    : schoolDistribution.filter(school => selectedSchools.includes(school.name));
+
+  const displayPlacementBySchool = showAllData
+    ? placementBySchool
+    : placementBySchool.filter(row => selectedSchools.includes(row.school));
+
+  // Handle school selection toggle
+  const handleSchoolToggle = (schoolName) => {
+    setSelectedSchools(prev => {
+      if (prev.includes(schoolName)) {
+        // Remove from selection
+        return prev.filter(name => name !== schoolName);
+      } else {
+        // Add to selection
+        return [...prev, schoolName];
+      }
+    });
+  };
+
   return (
     <AdminLayout>
       <Box bg="#f7f7fa" minH="100vh" pb={10}>
@@ -283,12 +401,34 @@ const Dashboard = () => {
           <VStack spacing={8} align="stretch">
             {/* Header */}
             <Box>
-              <Heading as="h1" fontSize={{ base: '2xl', sm: '3xl' }} fontWeight="extrabold" color="gray.800">
-                Admin Overview
-              </Heading>
-              <Text fontSize="lg" fontWeight="medium" color="gray.500" mt={1}>
-                Key metrics and placement statistics.
-              </Text>
+              <HStack justify="space-between" align="center" mb={2}>
+                <Box>
+                  <Heading as="h1" fontSize={{ base: '2xl', sm: '3xl' }} fontWeight="extrabold" color="gray.800">
+                    {showAllData 
+                      ? 'Admin Overview' 
+                      : selectedSchools.length === 1
+                        ? `${selectedSchools[0]} Overview`
+                        : `${selectedSchools.length} Schools Selected`
+                    }
+                  </Heading>
+                  <Text fontSize="lg" fontWeight="medium" color="gray.500" mt={1}>
+                    {showAllData 
+                      ? 'Key metrics and placement statistics.' 
+                      : `Metrics and statistics for selected ${selectedSchools.length === 1 ? 'school' : 'schools'}.`
+                    }
+                  </Text>
+                </Box>
+                {!showAllData && (
+                  <Button
+                    onClick={() => setSelectedSchools([])}
+                    colorScheme="gray"
+                    variant="outline"
+                    size="sm"
+                  >
+                    View All Schools
+                  </Button>
+                )}
+              </HStack>
             </Box>
 
             {loading ? (
@@ -318,8 +458,63 @@ const Dashboard = () => {
                     <Icon as={FiUsers} boxSize={8} color="#d1a85d" opacity={0.9} />
                   </Flex>
                   <Text fontSize="5xl" fontWeight="extrabold" mt={1}>
-                    {totalStudents}
+                    {displayStats.totalStudents}
                   </Text>
+                </Box>
+
+                {/* Student Distribution by School */}
+                <Box>
+                  <Heading as="h2" fontSize="xl" fontWeight="bold" color="gray.700" mb={4}>
+                    Student Distribution by School
+                  </Heading>
+                  <SimpleGrid columns={{ base: 2, sm: 4, lg: 8 }} spacing={4} mb={8}>
+                    {schoolDistribution.length > 0 ? (
+                      schoolDistribution.map((school) => {
+                        // Determine if this is the top school by student count
+                        const maxCount = Math.max(...schoolDistribution.map(s => s.total || 0));
+                        const isTopSchool = school.total === maxCount && maxCount > 0;
+                        const isSelected = selectedSchools.includes(school.name);
+                        
+                        return (
+                          <Box
+                            key={school.name}
+                            as="button"
+                            onClick={() => handleSchoolToggle(school.name)}
+                            bg={isSelected ? '#172e36' : cardBg}
+                            p={3}
+                            borderRadius="xl"
+                            boxShadow={isSelected ? 'lg' : 'md'}
+                            textAlign="center"
+                            border={isSelected ? '2px solid' : 'none'}
+                            borderColor={isSelected ? '#d1a85d' : 'transparent'}
+                            borderBottom={isSelected ? 'none' : '2px solid'}
+                            borderBottomColor={isSelected ? 'transparent' : (isTopSchool ? 'green.500' : 'blue.400')}
+                            _hover={{
+                              transform: 'scale(1.05)',
+                              boxShadow: 'xl',
+                            }}
+                            transition="all 0.2s"
+                            cursor="pointer"
+                          >
+                            <Text fontSize="sm" fontWeight="semibold" color={isSelected ? 'white' : 'gray.700'}>
+                              {school.name}
+                            </Text>
+                            <Text
+                              fontSize="xl"
+                              fontWeight="bold"
+                              color={isSelected ? '#d1a85d' : (isTopSchool ? 'green.600' : 'blue.600')}
+                            >
+                              {school.total || 0}
+                            </Text>
+                          </Box>
+                        );
+                      })
+                    ) : (
+                      <Text color="gray.500" textAlign="center" gridColumn="1 / -1">
+                        No school distribution data available
+                      </Text>
+                    )}
+                  </SimpleGrid>
                 </Box>
 
                 {/* Row 2: Total Offers and Total Placed */}
@@ -345,7 +540,7 @@ const Dashboard = () => {
                       Total Offers
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="gray.900" mt={1}>
-                      {totalOffers}
+                      {displayStats.totalOffers}
                     </Text>
                   </Box>
 
@@ -361,7 +556,7 @@ const Dashboard = () => {
                       Total Offers Percentage
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="#d1a85d" mt={1}>
-                      {totalOffersPercent.toFixed(2)}%
+                      {displayStats.totalOffersPercent.toFixed(2)}%
                     </Text>
                   </Box>
 
@@ -386,7 +581,7 @@ const Dashboard = () => {
                       Total Placed
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="gray.900" mt={1}>
-                      {totalPlacedCombined}
+                      {displayStats.totalPlacedCombined}
                     </Text>
                   </Box>
 
@@ -402,7 +597,7 @@ const Dashboard = () => {
                       Total Placed Percentage
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="#d1a85d" mt={1}>
-                      {totalPlacedCombinedPercent.toFixed(2)}%
+                      {displayStats.totalPlacedCombinedPercent.toFixed(2)}%
                     </Text>
                   </Box>
                 </SimpleGrid>
@@ -443,10 +638,10 @@ const Dashboard = () => {
                         Total Full time
                       </Text>
                       <Text fontSize="2xl" fontWeight="bold" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.800' : 'gray.900'} mt={1}>
-                        {totalPlaced}
+                        {displayStats.totalPlaced}
                       </Text>
                       <Text fontSize="sm" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.700' : 'green.600'} mt={2}>
-                        Total Full time %: {totalPlacedPercent.toFixed(2)}%
+                        Total Full time %: {displayStats.totalPlacedPercent.toFixed(2)}%
                       </Text>
                     </Box>
                   </Box>
@@ -485,10 +680,10 @@ const Dashboard = () => {
                         Total Internships
                       </Text>
                       <Text fontSize="2xl" fontWeight="bold" color={isTotalOffersHovered ? 'purple.800' : 'gray.900'} mt={1}>
-                        {totalInternships}
+                        {displayStats.totalInternships}
                       </Text>
                       <Text fontSize="sm" fontWeight="medium" color={isTotalOffersHovered ? 'purple.700' : 'purple.600'} mt={2}>
-                        Total Internships %: {totalInternshipsPercent.toFixed(2)}%
+                        Total Internships %: {displayStats.totalInternshipsPercent.toFixed(2)}%
                       </Text>
                     </Box>
                   </Box>
@@ -527,10 +722,10 @@ const Dashboard = () => {
                         Total Internship-cum-Fulltime
                       </Text>
                       <Text fontSize="2xl" fontWeight="bold" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.800' : 'gray.900'} mt={1}>
-                        {totalInternshipCumFulltime}
+                        {displayStats.totalInternshipCumFulltime}
                       </Text>
                       <Text fontSize="sm" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.700' : 'orange.600'} mt={2}>
-                        Total Internship-cum-Fulltime %: {totalInternshipCumFulltimePercent.toFixed(2)}%
+                        Total Internship-cum-Fulltime %: {displayStats.totalInternshipCumFulltimePercent.toFixed(2)}%
                       </Text>
                     </Box>
                   </Box>
@@ -586,7 +781,7 @@ const Dashboard = () => {
                           Highest CTC
                         </Text>
                         <Text fontSize="3xl" fontWeight="extrabold" color="green.700" mt={1}>
-                          {highestCTC} LPA
+                          {displayStats.highestCTC} LPA
                         </Text>
                       </Box>
 
@@ -604,7 +799,7 @@ const Dashboard = () => {
                           Average CTC
                         </Text>
                         <Text fontSize="3xl" fontWeight="extrabold" color="blue.600" mt={1}>
-                          {averageCTC} LPA
+                          {displayStats.averageCTC} LPA
                         </Text>
                       </Box>
 
@@ -622,7 +817,7 @@ const Dashboard = () => {
                           Lowest CTC
                         </Text>
                         <Text fontSize="3xl" fontWeight="extrabold" color="red.700" mt={1}>
-                          {lowestCTC} LPA
+                          {displayStats.lowestCTC} LPA
                         </Text>
                       </Box>
                     </VStack>
@@ -643,7 +838,7 @@ const Dashboard = () => {
                     <Heading as="h3" fontSize="xl" fontWeight="bold" color="gray.700">
                       Hiring Partners (
                       <Text as="span" color="blue.600" fontWeight="extrabold">
-                        {uniqueCompanies}
+                        {displayStats.uniqueCompanies}
                       </Text>{' '}
                       Unique Companies)
                     </Heading>
@@ -778,50 +973,6 @@ const Dashboard = () => {
                   </Box>
                 </Box>
 
-                {/* Row 7: Student Distribution by School */}
-                <Box>
-                  <Heading as="h2" fontSize="xl" fontWeight="bold" color="gray.700" mb={4}>
-                    Student Distribution by School
-                  </Heading>
-                  <SimpleGrid columns={{ base: 2, sm: 4, lg: 8 }} spacing={4} mb={8}>
-                    {schoolDistribution.length > 0 ? (
-                      schoolDistribution.map((school) => {
-                        // Determine if this is the top school by student count
-                        const maxCount = Math.max(...schoolDistribution.map(s => s.total || 0));
-                        const isTopSchool = school.total === maxCount && maxCount > 0;
-                        
-                        return (
-                          <Box
-                            key={school.name}
-                            bg={cardBg}
-                            p={3}
-                            borderRadius="xl"
-                            boxShadow="md"
-                            textAlign="center"
-                            borderBottom="2px solid"
-                            borderColor={isTopSchool ? 'green.500' : 'blue.400'}
-                          >
-                            <Text fontSize="sm" fontWeight="semibold" color="gray.700">
-                              {school.name}
-                            </Text>
-                            <Text
-                              fontSize="xl"
-                              fontWeight="bold"
-                              color={isTopSchool ? 'green.600' : 'blue.600'}
-                            >
-                              {school.total || 0}
-                            </Text>
-                          </Box>
-                        );
-                      })
-                    ) : (
-                      <Text color="gray.500" textAlign="center" gridColumn="1 / -1">
-                        No school distribution data available
-                      </Text>
-                    )}
-                  </SimpleGrid>
-                </Box>
-
                 {/* Row 8: Placement by School Table */}
                 <Box>
                   <Heading as="h2" fontSize="2xl" fontWeight="bold" color="gray.700" mb={4}>
@@ -858,8 +1009,8 @@ const Dashboard = () => {
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {placementBySchool.length > 0 ? (
-                            placementBySchool.map((row, index) => (
+                          {displayPlacementBySchool.length > 0 ? (
+                            displayPlacementBySchool.map((row, index) => (
                               <Tr
                                 key={`${row.school}-${index}`}
                                 bg="white"
@@ -918,13 +1069,13 @@ const Dashboard = () => {
                               Total
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
-                              {totalStudents}
+                              {displayStats.totalStudents}
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
-                              {placedStudents}
+                              {displayStats.placedStudents}
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
-                              {placementRate}%
+                              {displayStats.placementRate}%
                             </Td>
                           </Tr>
                         </Tbody>

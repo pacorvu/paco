@@ -5,6 +5,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
+import UserManagement from './pages/UserManagement';
+import ChangePassword from './pages/ChangePassword';
 
 function App() {
   return (
@@ -31,6 +33,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <UserManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/change-password/:id"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <ChangePassword />
               </ProtectedRoute>
             }
           />

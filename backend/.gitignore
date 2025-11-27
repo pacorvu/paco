@@ -54,3 +54,7 @@ coverage/
 *.temp
 .cache/
 
+# Gmail API credentials (DO NOT COMMIT)
+utils/credentials.json
+utils/token.json
+

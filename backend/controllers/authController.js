@@ -3,8 +3,7 @@ import { db, getSupabaseClient } from '../database/supabase.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { createOtpChallenge, verifyOtpChallenge } from '../services/otpService.js';
-import { initializeEmailService } from '../services/emailService.js';
+// Email service removed - OTP no longer required for registration
 
 // Enhanced logging utility
 const logError = (context, error, req = null) => {
@@ -80,62 +79,12 @@ const generateToken = (id, role) => {
   });
 };
 
-// @desc    Send OTP for registration (Admin only)
-// @route   POST /api/auth/register/send-otp
-// @access  Admin only
-export const sendRegistrationOtp = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      logInfo('Registration OTP request - missing email', { email: null }, req);
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email'
-      });
-    }
-
-    logInfo('Registration OTP request', { email }, req);
-
-    // Check if user already exists
-    const existingUser = await db.get('SELECT id FROM register WHERE email = ?', [email]);
-    if (existingUser) {
-      logInfo('Registration OTP request - user already exists', { email }, req);
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists with this email'
-      });
-    }
-
-    // Create and send OTP
-    const otpChallenge = await createOtpChallenge({
-      email,
-      purpose: 'REGISTRATION'
-    });
-
-    logInfo('Registration OTP sent successfully', { email, requestId: otpChallenge.requestId }, req);
-
-    res.status(200).json({
-      success: true,
-      message: 'OTP sent to your email',
-      requestId: otpChallenge.requestId,
-      expiresInMinutes: otpChallenge.expiresInMinutes
-    });
-  } catch (error) {
-    logError('Send registration OTP error', error, req);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to send OTP'
-    });
-  }
-};
-
-// @desc    Register user with OTP verification (Admin only)
+// @desc    Register user (Admin only - no OTP required)
 // @route   POST /api/auth/register
 // @access  Admin only
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role, otpRequestId, otp } = req.body;
+    const { name, email, password, role } = req.body;
 
     // Validation
     if (!name || !email || !password) {
@@ -145,32 +94,11 @@ export const register = async (req, res) => {
       });
     }
 
-    if (!otpRequestId || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'OTP verification required. Please request an OTP first.'
-      });
-    }
-
     // Validate role
-    if (role && !['admin', 'vc', 'guest'].includes(role)) {
+    if (role && !['admin', 'superadmin'].includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role. Must be admin, vc, or guest'
-      });
-    }
-
-    // Verify OTP first
-    try {
-      await verifyOtpChallenge({
-        requestId: otpRequestId,
-        otp,
-        expectedPurpose: 'REGISTRATION'
-      });
-    } catch (otpError) {
-      return res.status(400).json({
-        success: false,
-        message: otpError.message || 'Invalid or expired OTP'
+        message: 'Invalid role. Must be admin or superadmin'
       });
     }
 
@@ -192,7 +120,7 @@ export const register = async (req, res) => {
     try {
       result = await db.run(
         'INSERT INTO register (name, email, password, role) VALUES (?, ?, ?, ?)',
-        [name, email, hashedPassword, role || 'vc']
+        [name, email, hashedPassword, role || 'admin']
       );
     } catch (dbError) {
       logError('Registration - Database insert failed', dbError, req);
@@ -208,7 +136,7 @@ export const register = async (req, res) => {
       if (dbError.code === '23514') { // Check constraint violation
         return res.status(400).json({
           success: false,
-          message: `Invalid role. Role must be 'admin', 'vc', or 'guest'`
+          message: `Invalid role. Role must be 'admin' or 'superadmin'`
         });
       }
       
@@ -457,34 +385,24 @@ export const sendPasswordResetOtp = async (req, res) => {
       });
     }
 
-    // Check if user exists in register table
-    const user = await db.get('SELECT id FROM register WHERE email = ?', [email]);
-    if (!user) {
-      // Don't reveal if user exists or not for security
-      return res.status(200).json({
-        success: true,
-        message: 'If that email exists, an OTP has been sent'
-      });
-    }
-
-    // Create and send OTP
-    const otpChallenge = await createOtpChallenge({
-      email,
-      purpose: 'PASSWORD_RESET'
-    });
-
-    res.status(200).json({
+    // Return contact admin message
+    return res.status(200).json({
       success: true,
-      message: 'OTP sent to your email',
-      requestId: otpChallenge.requestId,
-      expiresInMinutes: otpChallenge.expiresInMinutes
+      message: 'Please contact the administrator to reset your password',
+      contactInfo: {
+        phones: ['8792160487', '9380287770'],
+        emails: ['raghavendrak.bsc23@rvu.edu.in', 'akshayas.bsc23@rvu.edu.in']
+      }
     });
   } catch (error) {
     logError('Send password reset OTP error', error, req);
-    // Don't reveal if user exists or not
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'If that email exists, an OTP has been sent'
+      message: 'Please contact the administrator to reset your password',
+      contactInfo: {
+        phones: ['8792160487', '9380287770'],
+        emails: ['raghavendrak.bsc23@rvu.edu.in', 'akshayas.bsc23@rvu.edu.in']
+      }
     });
   }
 };
@@ -501,61 +419,14 @@ export const forgotPassword = async (req, res) => {
 // @route   POST /api/auth/reset-password
 // @access  Public
 export const resetPassword = async (req, res) => {
-  try {
-    const { otpRequestId, otp, password } = req.body;
-
-    if (!otpRequestId || !otp || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide OTP request ID, OTP, and new password'
-      });
+  // Password reset via OTP is disabled - users must contact admin
+  return res.status(200).json({
+    success: false,
+    message: 'Please contact the administrator to reset your password',
+    contactInfo: {
+      phones: ['8792160487', '9380287770'],
+      emails: ['raghavendrak.bsc23@rvu.edu.in', 'akshayas.bsc23@rvu.edu.in']
     }
-
-    // Verify OTP
-    let otpVerification;
-    try {
-      otpVerification = await verifyOtpChallenge({
-        requestId: otpRequestId,
-        otp,
-        expectedPurpose: 'PASSWORD_RESET'
-      });
-    } catch (otpError) {
-      return res.status(400).json({
-        success: false,
-        message: otpError.message || 'Invalid or expired OTP'
-      });
-    }
-
-    // Get user by email from OTP verification
-    const user = await db.get('SELECT id FROM register WHERE email = ?', [otpVerification.email]);
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    // Hash new password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Update password in register table
-    await db.update(
-      'UPDATE register SET password = ? WHERE id = ?',
-      [hashedPassword, user.id]
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Password reset successfully'
-    });
-  } catch (error) {
-    logError('Reset password error', error, req);
-    res.status(500).json({
-      success: false,
-      message: 'Error resetting password',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
+  });
 };
 

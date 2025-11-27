@@ -1,15 +1,15 @@
-// Example user controller
-// In a real app, this would interact with a database
+import { db } from '../database/supabase.js';
+import bcrypt from 'bcryptjs';
 
-// Mock data (replace with database queries)
-let users = [
-  { id: 1, name: 'John Doe', email: 'john@example.com' },
-  { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
-];
-
-// Get all users
-export const getUsers = (req, res) => {
+// @desc    Get all registered users
+// @route   GET /api/users
+// @access  Admin only
+export const getUsers = async (req, res) => {
   try {
+    const users = await db.all(
+      'SELECT id, name, email, role, created_at FROM register ORDER BY created_at DESC'
+    );
+
     res.status(200).json({
       success: true,
       count: users.length,
@@ -24,11 +24,16 @@ export const getUsers = (req, res) => {
   }
 };
 
-// Get user by ID
-export const getUserById = (req, res) => {
+// @desc    Get user by ID
+// @route   GET /api/users/:id
+// @access  Admin only
+export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = users.find(u => u.id === parseInt(id));
+    const user = await db.get(
+      'SELECT id, name, email, role, created_at FROM register WHERE id = ?',
+      [id]
+    );
     
     if (!user) {
       return res.status(404).json({
@@ -50,95 +55,56 @@ export const getUserById = (req, res) => {
   }
 };
 
-// Create new user
-export const createUser = (req, res) => {
+// @desc    Change user password (Admin only)
+// @route   PUT /api/users/:id/password
+// @access  Admin only
+export const changeUserPassword = async (req, res) => {
   try {
-    const { name, email } = req.body;
-    
-    if (!name || !email) {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name and email'
+        message: 'Please provide a new password'
       });
     }
-    
-    const newUser = {
-      id: users.length + 1,
-      name,
-      email
-    };
-    
-    users.push(newUser);
-    
-    res.status(201).json({
-      success: true,
-      data: newUser
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error creating user',
-      error: error.message
-    });
-  }
-};
 
-// Update user
-export const updateUser = (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, email } = req.body;
-    
-    const userIndex = users.findIndex(u => u.id === parseInt(id));
-    
-    if (userIndex === -1) {
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    // Check if user exists
+    const user = await db.get('SELECT id FROM register WHERE id = ?', [id]);
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
-    
-    if (name) users[userIndex].name = name;
-    if (email) users[userIndex].email = email;
-    
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Update password
+    await db.update(
+      'UPDATE register SET password = ? WHERE id = ?',
+      [hashedPassword, id]
+    );
+
     res.status(200).json({
       success: true,
-      data: users[userIndex]
+      message: 'Password updated successfully'
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error updating user',
+      message: 'Error updating password',
       error: error.message
     });
   }
 };
-
-// Delete user
-export const deleteUser = (req, res) => {
-  try {
-    const { id } = req.params;
-    const userIndex = users.findIndex(u => u.id === parseInt(id));
-    
-    if (userIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-    
-    users = users.filter(u => u.id !== parseInt(id));
-    
-    res.status(200).json({
-      success: true,
-      message: 'User deleted successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting user',
-      error: error.message
-    });
-  }
-};
-

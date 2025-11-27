@@ -17,8 +17,12 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to="/dashboard" replace />;
+  if (requiredRole) {
+    // Allow both admin and superadmin to have same permissions
+    const allowedRoles = requiredRole === 'admin' ? ['admin', 'superadmin'] : [requiredRole];
+    if (!allowedRoles.includes(user?.role)) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return children;

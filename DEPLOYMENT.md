@@ -84,8 +84,40 @@ For production deployment:
 
 1. Build the frontend: `cd frontend && npm run build`
 2. Set `NODE_ENV=production`
-3. Start the backend: `cd backend && npm start`
-4. Configure your reverse proxy (nginx, etc.) to point to port 5000
+3. **Configure Email Service** (Required for OTP functionality)
+   - See [EMAIL_SETUP.md](./EMAIL_SETUP.md) for detailed instructions
+   - **For Render/Cloud Platforms**: Use Resend API (Gmail SMTP won't work)
+   - Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` environment variables
+4. Start the backend: `cd backend && npm start`
+5. Configure your reverse proxy (nginx, etc.) to point to port 5000
+
+### Render Deployment
+
+When deploying to Render:
+
+1. **Email Configuration** (Critical):
+   - Cloud platforms block SMTP ports, so Gmail SMTP will NOT work
+   - You MUST use Resend API for email functionality
+   - Add these environment variables in Render dashboard:
+     ```
+     RESEND_API_KEY=re_your_api_key_here
+     RESEND_FROM_EMAIL=noreply@yourdomain.com
+     ```
+   - See [EMAIL_SETUP.md](./EMAIL_SETUP.md) for complete setup instructions
+
+2. **Port Configuration**:
+   - Render automatically sets the `PORT` environment variable
+   - Your server should use `process.env.PORT || 5000` (already configured)
+
+3. **Build Command**:
+   ```
+   cd backend && npm install && cd ../frontend && npm install && npm run build
+   ```
+
+4. **Start Command**:
+   ```
+   cd backend && npm start
+   ```
 
 ## Notes
 

@@ -173,49 +173,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const sendRegistrationOtp = async (email) => {
-    try {
-      const response = await api.post('/auth/register/send-otp', { email });
-      return {
-        success: response.data.success,
-        requestId: response.data.requestId,
-        expiresInMinutes: response.data.expiresInMinutes,
-        message: response.data.message
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to send OTP'
-      };
-    }
-  };
-
-  const verifyRegistrationOtp = async (requestId, otp) => {
-    try {
-      // The backend verifies OTP during registration, but we can verify it separately first
-      // For now, we'll just store the OTP and requestId to use during registration
-      // The actual verification happens in the register endpoint
-      return {
-        success: true,
-        message: 'OTP will be verified during registration'
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to verify OTP'
-      };
-    }
-  };
-
-  const register = async (name, email, password, role, otpRequestId, otp, isAdminRegistering = false) => {
+  const register = async (name, email, password, role, isAdminRegistering = false) => {
     try {
       const response = await api.post('/auth/register', { 
         name, 
         email, 
         password, 
-        role,
-        otpRequestId,
-        otp
+        role
       });
       
       if (response.data && response.data.success) {
@@ -272,14 +236,14 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/forgot-password/send-otp', { email });
       return {
         success: response.data.success,
-        requestId: response.data.requestId,
-        expiresInMinutes: response.data.expiresInMinutes,
-        message: response.data.message
+        message: response.data.message,
+        contactInfo: response.data.contactInfo
       };
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to send OTP'
+        message: error.response?.data?.message || 'Failed to get contact information',
+        contactInfo: error.response?.data?.contactInfo || null
       };
     }
   };
@@ -310,17 +274,14 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     login,
-    sendRegistrationOtp,
-    verifyRegistrationOtp,
     register,
     logout,
     sendPasswordResetOtp,
     forgotPassword,
     resetPassword,
     isAuthenticated: !!token,
-    isAdmin: user?.role === 'admin',
-    isVC: user?.role === 'vc',
-    isGuest: user?.role === 'guest'
+    isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
+    isSuperAdmin: user?.role === 'superadmin'
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

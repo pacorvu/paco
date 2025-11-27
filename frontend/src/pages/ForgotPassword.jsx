@@ -7,21 +7,20 @@ import {
   VStack,
   Heading,
   Text,
-  Code
+  HStack,
+  Icon
 } from '@chakra-ui/react';
+import { PhoneIcon, EmailIcon } from '@chakra-ui/icons';
 import { useAuth } from '../context/AuthContext';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
-  const [resetToken, setResetToken] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
-  const { forgotPassword, resetPassword } = useAuth();
+  const [contactInfo, setContactInfo] = useState(null);
+  const { forgotPassword } = useAuth();
 
   const validateEmail = () => {
     const errors = {};
@@ -34,34 +33,12 @@ const ForgotPassword = () => {
     return Object.keys(errors).length === 0;
   };
 
-  const validateResetForm = () => {
-    const errors = {};
-
-    if (!resetToken.trim()) {
-      errors.resetToken = 'Reset token is required';
-    }
-
-    if (!newPassword) {
-      errors.newPassword = 'New password is required';
-    } else if (newPassword.length < 6) {
-      errors.newPassword = 'Password must be at least 6 characters';
-    }
-
-    if (!confirmPassword) {
-      errors.confirmPassword = 'Please confirm your password';
-    } else if (newPassword !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
   const handleRequestReset = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setFieldErrors({});
+    setContactInfo(null);
 
     if (!validateEmail()) {
       return;
@@ -73,43 +50,15 @@ const ForgotPassword = () => {
       const result = await forgotPassword(email.trim());
 
       if (result && result.success) {
-        setSuccess('Password reset token generated.');
-        if (result.data && result.data.resetToken) {
-          setResetToken(result.data.resetToken);
-          setStep(2);
+        setSuccess(result.message || 'Please contact the administrator to reset your password');
+        if (result.contactInfo) {
+          setContactInfo(result.contactInfo);
         }
       } else {
-        setError(result?.message || 'Failed to generate reset token. Please try again.');
-      }
-    } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'An unexpected error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setFieldErrors({});
-
-    if (!validateResetForm()) {
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const result = await resetPassword(resetToken.trim(), newPassword);
-
-      if (result && result.success) {
-        setSuccess('Password reset successfully! Redirecting...');
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
-      } else {
-        setError(result?.message || 'Failed to reset password. Please check your token and try again.');
+        setError(result?.message || 'An error occurred. Please try again.');
+        if (result?.contactInfo) {
+          setContactInfo(result.contactInfo);
+        }
       }
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'An unexpected error occurred. Please try again.');
@@ -124,30 +73,8 @@ const ForgotPassword = () => {
       setFieldErrors({ ...fieldErrors, email: '' });
     }
     if (error) setError('');
-  };
-
-  const handleTokenChange = (e) => {
-    setResetToken(e.target.value);
-    if (fieldErrors.resetToken) {
-      setFieldErrors({ ...fieldErrors, resetToken: '' });
-    }
-    if (error) setError('');
-  };
-
-  const handleNewPasswordChange = (e) => {
-    setNewPassword(e.target.value);
-    if (fieldErrors.newPassword) {
-      setFieldErrors({ ...fieldErrors, newPassword: '' });
-    }
-    if (error) setError('');
-  };
-
-  const handleConfirmPasswordChange = (e) => {
-    setConfirmPassword(e.target.value);
-    if (fieldErrors.confirmPassword) {
-      setFieldErrors({ ...fieldErrors, confirmPassword: '' });
-    }
-    if (error) setError('');
+    if (success) setSuccess('');
+    if (contactInfo) setContactInfo(null);
   };
 
   return (
@@ -184,10 +111,10 @@ const ForgotPassword = () => {
               fontWeight="bold"
               mb={2}
             >
-              {step === 1 ? 'Forgot Password' : 'Reset Password'}
+              Forgot Password
             </Heading>
             <Text color="gray.600" fontSize="md">
-              {step === 1 ? 'Enter your email to receive a reset token' : 'Enter your reset token and new password'}
+              Enter your email to get contact information
             </Text>
           </Box>
 
@@ -219,13 +146,49 @@ const ForgotPassword = () => {
               boxShadow="sm"
               className="slide-in"
             >
-              <Text color="green.700" fontSize="sm" fontWeight="600">
+              <Text color="green.700" fontSize="sm" fontWeight="600" mb={contactInfo ? 4 : 0}>
                 {success}
               </Text>
+              
+              {contactInfo && (
+                <VStack spacing={3} align="stretch" mt={4}>
+                  <Box>
+                    <Text fontSize="sm" fontWeight="600" color="gray.700" mb={2}>
+                      Contact the Administrator:
+                    </Text>
+                    
+                    {contactInfo.phones && contactInfo.phones.length > 0 && (
+                      <VStack spacing={2} align="stretch" mb={3}>
+                        {contactInfo.phones.map((phone, index) => (
+                          <HStack key={index} spacing={2}>
+                            <Icon as={PhoneIcon} color="#d1a85d" />
+                            <Text fontSize="sm" color="gray.800">
+                              {phone}
+                            </Text>
+                          </HStack>
+                        ))}
+                      </VStack>
+                    )}
+                    
+                    {contactInfo.emails && contactInfo.emails.length > 0 && (
+                      <VStack spacing={2} align="stretch">
+                        {contactInfo.emails.map((email, index) => (
+                          <HStack key={index} spacing={2}>
+                            <Icon as={EmailIcon} color="#d1a85d" />
+                            <Text fontSize="sm" color="gray.800">
+                              {email}
+                            </Text>
+                          </HStack>
+                        ))}
+                      </VStack>
+                    )}
+                  </Box>
+                </VStack>
+              )}
             </Box>
           )}
 
-          {step === 1 ? (
+          {!success && (
             <Box as="form" onSubmit={handleRequestReset} w="100%">
               <VStack spacing={4}>
                 <Box w="100%">
@@ -270,7 +233,7 @@ const ForgotPassword = () => {
                   w="100%"
                   h="52px"
                   isLoading={loading}
-                  loadingText="Sending..."
+                  loadingText="Loading..."
                   bg="#d1a85d"
                   color="white"
                   fontWeight="600"
@@ -287,164 +250,7 @@ const ForgotPassword = () => {
                   isDisabled={loading}
                   transition="all 0.2s"
                 >
-                  Send Reset Token
-                </Button>
-              </VStack>
-            </Box>
-          ) : (
-            <Box as="form" onSubmit={handleResetPassword} w="100%">
-              <VStack spacing={4}>
-                {resetToken && (
-                  <Box w="100%" p={4} bg="yellow.50" borderRadius="xl" border="1px solid" borderColor="yellow.200" boxShadow="sm">
-                    <Text fontSize="xs" mb={2} color="yellow.800" fontWeight="600">Reset Token:</Text>
-                    <Code 
-                      fontSize="xs" 
-                      wordBreak="break-all" 
-                      p={3} 
-                      display="block"
-                      bg="white"
-                      color="yellow.900"
-                      borderRadius="lg"
-                      border="1px solid"
-                      borderColor="yellow.200"
-                    >
-                      {resetToken}
-                    </Code>
-                  </Box>
-                )}
-
-                <Box w="100%">
-                  <Text mb={2} color="gray.700" fontSize="sm" fontWeight="600">
-                    Reset Token
-                  </Text>
-                  <Input
-                    type="text"
-                    value={resetToken}
-                    onChange={handleTokenChange}
-                    placeholder="Enter reset token"
-                    size="md"
-                    h="48px"
-                    borderColor={fieldErrors.resetToken ? 'red.400' : 'gray.300'}
-                    color="gray.800"
-                    bg="white"
-                    borderRadius="xl"
-                    _placeholder={{ color: 'gray.400' }}
-                    _hover={{ 
-                      borderColor: fieldErrors.resetToken ? 'red.500' : '#d1a85d',
-                      bg: 'white',
-                      boxShadow: 'sm'
-                    }}
-                    _focus={{
-                      borderColor: fieldErrors.resetToken ? 'red.500' : '#d1a85d',
-                      boxShadow: fieldErrors.resetToken ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
-                      bg: 'white'
-                    }}
-                    transition="all 0.2s"
-                    required
-                  />
-                  {fieldErrors.resetToken && (
-                    <Text color="red.500" fontSize="xs" mt={1.5} ml={1}>
-                      {fieldErrors.resetToken}
-                    </Text>
-                  )}
-                </Box>
-
-                <Box w="100%">
-                  <Text mb={2} color="gray.700" fontSize="sm" fontWeight="600">
-                    New Password
-                  </Text>
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={handleNewPasswordChange}
-                    placeholder="Enter new password"
-                    size="md"
-                    h="48px"
-                    borderColor={fieldErrors.newPassword ? 'red.400' : 'gray.300'}
-                    color="gray.800"
-                    bg="white"
-                    borderRadius="xl"
-                    _placeholder={{ color: 'gray.400' }}
-                    _hover={{ 
-                      borderColor: fieldErrors.newPassword ? 'red.500' : '#d1a85d',
-                      bg: 'white',
-                      boxShadow: 'sm'
-                    }}
-                    _focus={{
-                      borderColor: fieldErrors.newPassword ? 'red.500' : '#d1a85d',
-                      boxShadow: fieldErrors.newPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
-                      bg: 'white'
-                    }}
-                    transition="all 0.2s"
-                    required
-                  />
-                  {fieldErrors.newPassword && (
-                    <Text color="red.500" fontSize="xs" mt={1.5} ml={1}>
-                      {fieldErrors.newPassword}
-                    </Text>
-                  )}
-                </Box>
-
-                <Box w="100%">
-                  <Text mb={2} color="gray.700" fontSize="sm" fontWeight="600">
-                    Confirm New Password
-                  </Text>
-                  <Input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={handleConfirmPasswordChange}
-                    placeholder="Confirm new password"
-                    size="md"
-                    h="48px"
-                    borderColor={fieldErrors.confirmPassword ? 'red.400' : 'gray.300'}
-                    color="gray.800"
-                    bg="white"
-                    borderRadius="xl"
-                    _placeholder={{ color: 'gray.400' }}
-                    _hover={{ 
-                      borderColor: fieldErrors.confirmPassword ? 'red.500' : '#d1a85d',
-                      bg: 'white',
-                      boxShadow: 'sm'
-                    }}
-                    _focus={{
-                      borderColor: fieldErrors.confirmPassword ? 'red.500' : '#d1a85d',
-                      boxShadow: fieldErrors.confirmPassword ? '0 0 0 3px rgba(252, 129, 129, 0.2)' : '0 0 0 3px rgba(209, 168, 93, 0.2)',
-                      bg: 'white'
-                    }}
-                    transition="all 0.2s"
-                    required
-                  />
-                  {fieldErrors.confirmPassword && (
-                    <Text color="red.500" fontSize="xs" mt={1.5} ml={1}>
-                      {fieldErrors.confirmPassword}
-                    </Text>
-                  )}
-                </Box>
-
-                <Button
-                  type="submit"
-                  size="lg"
-                  w="100%"
-                  h="52px"
-                  isLoading={loading}
-                  loadingText="Resetting..."
-                  bg="#d1a85d"
-                  color="white"
-                  fontWeight="600"
-                  borderRadius="xl"
-                  boxShadow="md"
-                  _hover={{ 
-                    bg: "#c19a4d",
-                    boxShadow: "lg",
-                    transform: "translateY(-2px)"
-                  }}
-                  _active={{
-                    transform: "translateY(0)"
-                  }}
-                  isDisabled={loading}
-                  transition="all 0.2s"
-                >
-                  Reset Password
+                  Get Contact Information
                 </Button>
               </VStack>
             </Box>

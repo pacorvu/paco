@@ -49,7 +49,7 @@ export const initDatabase = async () => {
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('admin', 'vc', 'guest')),
+        role TEXT NOT NULL CHECK(role IN ('admin', 'superadmin')),
         reset_token TEXT,
         reset_token_expiry INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -74,16 +74,16 @@ export const initDatabase = async () => {
       console.log('✅ Default admin user created (admin@example.com / admin123)');
     }
 
-    // Create default VC if it doesn't exist
-    const vcExists = await db.get('SELECT id FROM users WHERE email = ?', ['vc@example.com']);
-    if (!vcExists) {
+    // Create default superadmin if it doesn't exist
+    const superadminExists = await db.get('SELECT id FROM users WHERE email = ?', ['superadmin@example.com']);
+    if (!superadminExists) {
       const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.default.hash('vc123', 10);
+      const hashedPassword = await bcrypt.default.hash('superadmin123', 10);
       await db.run(
         'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-        ['VC', 'vc@example.com', hashedPassword, 'vc']
+        ['Super Admin', 'superadmin@example.com', hashedPassword, 'superadmin']
       );
-      console.log('✅ Default VC created (vc@example.com / vc123)');
+      console.log('✅ Default superadmin created (superadmin@example.com / superadmin123)');
     }
 
     console.log('✅ Database initialized successfully');

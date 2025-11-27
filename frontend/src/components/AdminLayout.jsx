@@ -17,12 +17,13 @@ import {
 import { 
   ViewIcon, 
   ArrowForwardIcon,
-  AddIcon
+  AddIcon,
+  SettingsIcon
 } from '@chakra-ui/icons';
 import { useAuth } from '../context/AuthContext';
 
 const AdminLayout = ({ children }) => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -148,92 +149,96 @@ const AdminLayout = ({ children }) => {
                     </Link>
                   );
                 })}
-                {/* Add Registration Button - Admin Only */}
-                {isAdmin && (
-                  <Button
-                    onClick={() => navigate('/register')}
-                    variant="ghost"
-                    size="md"
-                    borderRadius="xl"
-                    fontWeight="500"
-                    fontSize="sm"
-                    letterSpacing="0.3px"
-                    px={5}
-                    py={2}
-                    color="rgba(255, 255, 255, 0.85)"
-                    bg="transparent"
-                    border="none"
-                    outline="none"
-                    position="relative"
-                    leftIcon={<AddIcon />}
-                    _hover={{
-                      bg: 'rgba(255, 255, 255, 0.12)',
-                      color: 'white',
-                      border: 'none',
-                      outline: 'none',
-                      transform: 'translateY(-1px)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
-                    }}
-                    _focus={{
-                      bg: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      boxShadow: 'none'
-                    }}
-                    _active={{
-                      bg: 'rgba(255, 255, 255, 0.12)',
-                      border: 'none',
-                      outline: 'none',
-                      transform: 'translateY(0)',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
-                    }}
-                    transition="all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
-                    sx={{
-                      '&:focus': {
-                        outline: 'none !important',
-                        boxShadow: 'none !important'
-                      }
-                    }}
-                  >
-                    Add Registration
-                  </Button>
-                )}
               </HStack>
             </HStack>
 
             {/* Right Section */}
             <HStack spacing={{ base: 2, md: 4 }}>
+              {/* User Management - Superadmin Only - Desktop */}
+              {isSuperAdmin && (
+                <Link to="/users" style={{ textDecoration: 'none' }}>
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    borderRadius="xl"
+                    fontWeight={isActive('/users') ? '600' : '500'}
+                    fontSize="sm"
+                    letterSpacing="0.3px"
+                    px={5}
+                    py={2}
+                    color={isActive('/users') ? '#172e36' : 'rgba(255, 255, 255, 0.85)'}
+                    bg={isActive('/users') ? '#d1a85d' : 'transparent'}
+                    border="none"
+                    outline="none"
+                    boxShadow={isActive('/users') ? '0 4px 12px rgba(209, 168, 93, 0.4)' : 'none'}
+                    position="relative"
+                    leftIcon={<SettingsIcon />}
+                    display={{ base: 'none', md: 'flex' }}
+                    _hover={{
+                      bg: isActive('/users') ? '#d1a85d' : 'rgba(255, 255, 255, 0.12)',
+                      color: isActive('/users') ? '#172e36' : 'white',
+                      border: 'none',
+                      outline: 'none',
+                      transform: 'translateY(-1px)',
+                      boxShadow: isActive('/users') ? '0 4px 16px rgba(209, 168, 93, 0.5)' : '0 4px 12px rgba(0, 0, 0, 0.2)'
+                    }}
+                    _focus={{
+                      bg: isActive('/users') ? '#d1a85d' : 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      boxShadow: isActive('/users') ? '0 4px 12px rgba(209, 168, 93, 0.4)' : 'none'
+                    }}
+                    _active={{
+                      bg: isActive('/users') ? '#d1a85d' : 'rgba(255, 255, 255, 0.12)',
+                      border: 'none',
+                      outline: 'none',
+                      transform: 'translateY(0)',
+                      boxShadow: isActive('/users') ? '0 2px 8px rgba(209, 168, 93, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.15)'
+                    }}
+                    transition="all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                    sx={{
+                      '&:focus': {
+                        outline: 'none !important',
+                        boxShadow: isActive('/users') ? '0 4px 12px rgba(209, 168, 93, 0.4) !important' : 'none !important'
+                      }
+                    }}
+                  >
+                    User Management
+                  </Button>
+                </Link>
+              )}
+
               {/* User Info & Logout - Mobile */}
               <HStack spacing={2} display={{ base: 'flex', md: 'none' }}>
-                {/* Add Registration Button - Mobile - Admin Only */}
-                {isAdmin && (
+                {/* User Management - Mobile - Superadmin Only */}
+                {isSuperAdmin && (
                   <Button
                     size="sm"
                     borderRadius="lg"
-                    onClick={() => navigate('/register')}
-                    bg="rgba(56, 189, 248, 0.15)"
-                    color="blue.300"
+                    onClick={() => navigate('/users')}
+                    bg="rgba(209, 168, 93, 0.15)"
+                    color="#d1a85d"
                     border="1px solid"
-                    borderColor="blue.400"
+                    borderColor="#d1a85d"
                     px={3}
                     py={2}
                     fontWeight="500"
                     fontSize="xs"
-                    leftIcon={<AddIcon />}
+                    leftIcon={<SettingsIcon />}
                     _hover={{
-                      bg: "rgba(56, 189, 248, 0.25)",
-                      borderColor: "blue.500",
+                      bg: "rgba(209, 168, 93, 0.25)",
+                      borderColor: "#c19a4d",
                       transform: "translateY(-1px)",
-                      boxShadow: "0 2px 8px rgba(56, 189, 248, 0.3)"
+                      boxShadow: "0 2px 8px rgba(209, 168, 93, 0.3)"
                     }}
                     _active={{
-                      bg: "rgba(56, 189, 248, 0.3)",
+                      bg: "rgba(209, 168, 93, 0.3)",
                       transform: "translateY(0)",
-                      boxShadow: "0 1px 4px rgba(56, 189, 248, 0.2)"
+                      boxShadow: "0 1px 4px rgba(209, 168, 93, 0.2)"
                     }}
                     transition="all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
                   >
-                    Add Registration
+                    Users
                   </Button>
                 )}
                 <Button

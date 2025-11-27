@@ -1,3 +1,9 @@
+# ============================================================================
+# SMTP-BASED EMAIL SENDER
+# ============================================================================
+# This file uses Gmail SMTP to send OTP emails.
+# ============================================================================
+
 import smtplib
 import sys
 import os
@@ -76,4 +82,3 @@ if __name__ == "__main__":
         sys.exit(1)
         
     send_email(to_email, otp, from_email, from_password)
-

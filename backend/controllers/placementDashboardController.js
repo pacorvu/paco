@@ -408,11 +408,40 @@ export const getSchoolDistribution = async (req, res) => {
 export const getCTCDistribution = async (req, res) => {
   try {
     const supabase = getSupabaseClient();
+    const { school } = req.query;
 
-    // Get all CTC values from job offers
-    const { data: ctcData, error: ctcError } = await supabase
+    // Build query - join with students table if school filter is provided
+    let query = supabase
       .from('job_offers')
-      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status');
+      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status, usn');
+
+    // If school filter is provided, we need to join with students table
+    if (school) {
+      // Handle multiple schools (comma-separated)
+      const schools = school.split(',').map(s => s.trim()).filter(Boolean);
+      
+      // Get all USNs for the selected schools
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('usn')
+        .in('school', schools);
+
+      if (studentsError) throw studentsError;
+
+      const schoolUSNs = studentsData?.map(s => s.usn) || [];
+      
+      if (schoolUSNs.length === 0) {
+        return res.status(200).json({
+          success: true,
+          data: []
+        });
+      }
+
+      // Filter job offers by USNs
+      query = query.in('usn', schoolUSNs);
+    }
+
+    const { data: ctcData, error: ctcError } = await query;
 
     if (ctcError) throw ctcError;
 
@@ -455,12 +484,41 @@ export const getCTCDistribution = async (req, res) => {
 export const getHiringPartners = async (req, res) => {
   try {
     const supabase = getSupabaseClient();
+    const { school } = req.query;
 
-    // Get all unique company names from job offers
-    const { data: companiesData, error: companiesError } = await supabase
+    // Build query
+    let query = supabase
       .from('job_offers')
-      .select('company_name')
+      .select('company_name, usn')
       .not('company_name', 'is', null);
+
+    // If school filter is provided, filter by school USNs
+    if (school) {
+      // Handle multiple schools (comma-separated)
+      const schools = school.split(',').map(s => s.trim()).filter(Boolean);
+      
+      // Get all USNs for the selected schools
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('usn')
+        .in('school', schools);
+
+      if (studentsError) throw studentsError;
+
+      const schoolUSNs = studentsData?.map(s => s.usn) || [];
+      
+      if (schoolUSNs.length === 0) {
+        return res.status(200).json({
+          success: true,
+          data: []
+        });
+      }
+
+      // Filter job offers by USNs
+      query = query.in('usn', schoolUSNs);
+    }
+
+    const { data: companiesData, error: companiesError } = await query;
 
     if (companiesError) throw companiesError;
 
@@ -507,11 +565,45 @@ export const getHiringPartners = async (req, res) => {
 export const getCTCStats = async (req, res) => {
   try {
     const supabase = getSupabaseClient();
+    const { school } = req.query;
 
-    // Get all CTC values from placed offers
-    const { data: ctcData, error: ctcError } = await supabase
+    // Build query
+    let query = supabase
       .from('job_offers')
-      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status');
+      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status, usn');
+
+    // If school filter is provided, filter by school USNs
+    if (school) {
+      // Handle multiple schools (comma-separated)
+      const schools = school.split(',').map(s => s.trim()).filter(Boolean);
+      
+      // Get all USNs for the selected schools
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('usn')
+        .in('school', schools);
+
+      if (studentsError) throw studentsError;
+
+      const schoolUSNs = studentsData?.map(s => s.usn) || [];
+      
+      if (schoolUSNs.length === 0) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            averageCTC: 0,
+            medianCTC: 0,
+            highestCTC: 0,
+            lowestCTC: 0
+          }
+        });
+      }
+
+      // Filter job offers by USNs
+      query = query.in('usn', schoolUSNs);
+    }
+
+    const { data: ctcData, error: ctcError } = await query;
 
     if (ctcError) throw ctcError;
 
@@ -534,26 +626,35 @@ export const getCTCStats = async (req, res) => {
       }
     });
 
-    // Calculate average
-    const averageCTC = ctcValues.length > 0
-      ? ctcValues.reduce((sum, val) => sum + val, 0) / ctcValues.length
-      : 0;
-
-    // Calculate median
+    // Calculate statistics
+    let averageCTC = 0;
     let medianCTC = 0;
+    let highestCTC = 0;
+    let lowestCTC = 0;
+
     if (ctcValues.length > 0) {
+      // Calculate average
+      averageCTC = ctcValues.reduce((sum, val) => sum + val, 0) / ctcValues.length;
+
+      // Calculate median
       const sorted = [...ctcValues].sort((a, b) => a - b);
       const mid = Math.floor(sorted.length / 2);
       medianCTC = sorted.length % 2 === 0
         ? (sorted[mid - 1] + sorted[mid]) / 2
         : sorted[mid];
+
+      // Calculate highest and lowest
+      highestCTC = Math.max(...ctcValues);
+      lowestCTC = Math.min(...ctcValues);
     }
 
     res.status(200).json({
       success: true,
       data: {
         averageCTC: parseFloat(averageCTC.toFixed(2)),
-        medianCTC: parseFloat(medianCTC.toFixed(2))
+        medianCTC: parseFloat(medianCTC.toFixed(2)),
+        highestCTC: parseFloat(highestCTC.toFixed(2)),
+        lowestCTC: parseFloat(lowestCTC.toFixed(2))
       }
     });
   } catch (error) {

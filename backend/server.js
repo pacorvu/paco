@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import { getSupabaseClient } from './database/supabase.js';
-import { initializeEmailService } from './services/emailService.js';
+// Email service removed - OTP no longer required
 import apiRoutes from './routes/apiRoutes.js';
 
 // Load environment variables
@@ -100,10 +100,7 @@ const startServer = async () => {
       // Don't exit - let server start anyway, connection will be retried on first use
     }
     
-    // Initialize email service (non-blocking)
-    initializeEmailService().catch(err => {
-      console.warn('Email service initialization failed, but server will continue:', err.message);
-    });
+    // Email service initialization removed - OTP no longer required for registration
     
     // Start server
     app.listen(PORT, () => {
