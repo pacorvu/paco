@@ -19,12 +19,11 @@ import {
   executeCustomQuery
 } from '../controllers/dbBrowserController.js';
 import {
-  getOverallPlacementStats,
-  getPlacementBySchool,
+  getOverallStats,
+  getCTCStats,
+  getCompanyStats,
   getSchoolDistribution,
-  getCTCDistribution,
-  getHiringPartners,
-  getCTCStats
+  getPlacementBySchool
 } from '../controllers/placementDashboardController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
@@ -54,12 +53,12 @@ router.get('/users/:id', protect, authorize('admin', 'superadmin'), getUserById)
 router.put('/users/:id/password', protect, authorize('admin', 'superadmin'), changeUserPassword);
 
 // Placement dashboard routes (admin and superadmin)
-router.get('/dashboard/placement/overall', protect, authorize('admin', 'superadmin'), getOverallPlacementStats);
+// Consolidated professional business module - one API per section
+router.get('/dashboard/placement/overall', protect, authorize('admin', 'superadmin'), getOverallStats);
+router.get('/dashboard/placement/ctc', protect, authorize('admin', 'superadmin'), getCTCStats);
+router.get('/dashboard/placement/companies', protect, authorize('admin', 'superadmin'), getCompanyStats);
+router.get('/dashboard/placement/schools', protect, authorize('admin', 'superadmin'), getSchoolDistribution);
 router.get('/dashboard/placement/by-school', protect, authorize('admin', 'superadmin'), getPlacementBySchool);
-router.get('/dashboard/placement/school-distribution', protect, authorize('admin', 'superadmin'), getSchoolDistribution);
-router.get('/dashboard/placement/ctc-distribution', protect, authorize('admin', 'superadmin'), getCTCDistribution);
-router.get('/dashboard/placement/hiring-partners', protect, authorize('admin', 'superadmin'), getHiringPartners);
-router.get('/dashboard/placement/ctc-stats', protect, authorize('admin', 'superadmin'), getCTCStats);
 
 // Example route
 router.get('/test', (req, res) => {

@@ -87,9 +87,15 @@ const Dashboard = () => {
       return { labels: [], data: [] };
     }
 
+    // Filter out invalid values
+    const validData = data.filter(val => !isNaN(val) && val >= 0);
+    if (validData.length === 0) {
+      return { labels: [], data: [] };
+    }
+
     // Auto-calculate max if not provided
-    const actualMax = max || Math.ceil(Math.max(...data) + binSize);
-    const actualMin = min || Math.floor(Math.min(...data));
+    const actualMax = max || Math.ceil(Math.max(...validData) + binSize);
+    const actualMin = min || Math.floor(Math.min(...validData));
 
     const bins = {};
     const labels = [];
@@ -99,9 +105,9 @@ const Dashboard = () => {
       bins[label] = 0;
     }
 
-    data.forEach(value => {
+    validData.forEach(value => {
       let binFound = false;
-      for (let i = actualMin; i <= actualMax; i += binSize) {
+      for (let i = actualMin; i < actualMax; i += binSize) {
         if (value >= i && value < i + binSize) {
           const label = `${i} - ${i + binSize} LPA`;
           bins[label]++;
@@ -109,9 +115,12 @@ const Dashboard = () => {
           break;
         }
       }
-      if (!binFound && value >= actualMax) {
+      // Handle values at or above the max (put in last bin)
+      if (!binFound && value >= actualMax - binSize) {
         const lastLabel = labels[labels.length - 1];
-        bins[lastLabel]++;
+        if (lastLabel) {
+          bins[lastLabel]++;
+        }
       }
     });
 
@@ -121,7 +130,9 @@ const Dashboard = () => {
     };
   };
 
-  const distribution = calculateDistribution(ctcData);
+  // Ensure ctcData is always an array before calculating distribution
+  const validCtcData = Array.isArray(ctcData) ? ctcData : [];
+  const distribution = calculateDistribution(validCtcData);
 
   // Chart data configuration
   const chartData = {
@@ -203,19 +214,14 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (isAdmin || isSuperAdmin) {
-      // Check if all schools are selected or none selected
-      const allSelected = selectedSchools.length === schoolDistribution.length && schoolDistribution.length > 0;
-      const noneSelected = selectedSchools.length === 0;
-      const showAll = allSelected || noneSelected;
-      
-      // Fetch with school filter if schools are selected (but not all)
-      // If all or none selected, fetch all data
-      const schoolFilter = !showAll && selectedSchools.length > 0 
+      // Only superadmins can filter by schools
+      // Regular admins always see all data
+      const schoolFilter = isSuperAdmin && selectedSchools.length > 0 
         ? selectedSchools.join(',') 
         : null;
       fetchPlacementStats(schoolFilter);
     }
-  }, [isAdmin, isSuperAdmin, selectedSchools, schoolDistribution.length]);
+  }, [isAdmin, isSuperAdmin, selectedSchools]);
 
   // Reset failed logos when hiring partners data changes
   useEffect(() => {
@@ -227,43 +233,96 @@ const Dashboard = () => {
       setLoading(true);
       setError('');
 
-      const ctcUrl = schoolFilter 
-        ? `/dashboard/placement/ctc-distribution?school=${encodeURIComponent(schoolFilter)}`
-        : '/dashboard/placement/ctc-distribution';
+      const queryParam = schoolFilter ? `?school=${encodeURIComponent(schoolFilter)}` : '';
 
-      const ctcStatsUrl = schoolFilter
-        ? `/dashboard/placement/ctc-stats?school=${encodeURIComponent(schoolFilter)}`
-        : '/dashboard/placement/ctc-stats';
-
-      const hiringPartnersUrl = schoolFilter
-        ? `/dashboard/placement/hiring-partners?school=${encodeURIComponent(schoolFilter)}`
-        : '/dashboard/placement/hiring-partners';
-
+      // Fetch consolidated statistics - one API per section
       const [
         overallResponse,
-        schoolResponse,
-        schoolDistResponse,
-        ctcDistResponse,
-        hiringPartnersResponse,
-        ctcStatsResponse
+        ctcResponse,
+        companiesResponse,
+        schoolsResponse,
+        bySchoolResponse
       ] = await Promise.all([
-        api.get('/dashboard/placement/overall'),
-        api.get('/dashboard/placement/by-school'),
-        api.get('/dashboard/placement/school-distribution'),
-        api.get(ctcUrl),
-        api.get(hiringPartnersUrl),
-        api.get(ctcStatsUrl)
+        api.get(`/dashboard/placement/overall${queryParam}`),
+        api.get(`/dashboard/placement/ctc${queryParam}`),
+        api.get(`/dashboard/placement/companies${queryParam}`),
+        api.get('/dashboard/placement/schools'),
+        api.get('/dashboard/placement/by-school')
       ]);
 
-      setOverallStats(overallResponse.data.data);
-      setSchoolStats(schoolResponse.data.data);
-      setSchoolDistribution(schoolDistResponse.data.data || []);
-      setCtcData(ctcDistResponse.data.data || []);
-      setHiringPartners(hiringPartnersResponse.data.data || []);
-      setCtcStats(ctcStatsResponse.data.data || { averageCTC: 0, medianCTC: 0 });
+      // Validate response structure
+      if (!overallResponse?.data?.data) {
+        throw new Error('Invalid response structure from overall stats endpoint');
+      }
+      if (!ctcResponse?.data?.data) {
+        throw new Error('Invalid response structure from CTC stats endpoint');
+      }
+      if (!companiesResponse?.data?.data) {
+        throw new Error('Invalid response structure from companies endpoint');
+      }
+      if (!schoolsResponse?.data?.data) {
+        throw new Error('Invalid response structure from schools endpoint');
+      }
+      if (!bySchoolResponse?.data?.data) {
+        throw new Error('Invalid response structure from by-school endpoint');
+      }
+
+      const overallData = overallResponse.data.data;
+      const ctcData = ctcResponse.data.data;
+      const companiesData = companiesResponse.data.data;
+
+      // Combine all statistics into overallStats object
+      const overallStatsData = {
+        totalStudents: overallData.totalStudents || 0,
+        totalOffersRecords: overallData.totalOffers || 0,
+        totalOffersPercent: overallData.totalOffersPercent || 0,
+        totalPlacedCombined: overallData.totalPlacedCombined || 0,
+        totalPlacedCombinedPercent: overallData.totalPlacedCombinedPercent || 0,
+        totalPlaced: overallData.totalPlaced || 0,
+        totalPlacedPercent: overallData.totalPlacedPercent || 0,
+        totalInternships: overallData.totalInternships || 0,
+        totalInternshipsPercent: overallData.totalInternshipsPercent || 0,
+        totalInternshipCumFulltime: overallData.totalInternshipCumFulltime || 0,
+        totalInternshipCumFulltimePercent: overallData.totalInternshipCumFulltimePercent || 0,
+        totalPlacedStudents: overallData.totalPlacedStudents || 0,
+        overallPlacementPercent: overallData.overallPlacementPercent || 0,
+        uniqueHiringCompanies: companiesData.uniqueCompanies || 0,
+        highestCTCLPA: ctcData.highestCTC || 0,
+        lowestCTCLPA: ctcData.lowestCTC || 0,
+        averageCTCLPA: ctcData.averageCTC || 0,
+        medianCTCLPA: ctcData.medianCTC || 0
+      };
+
+      setOverallStats(overallStatsData);
+      setSchoolStats(bySchoolResponse.data.data);
+      setSchoolDistribution(schoolsResponse.data.data || []);
+      
+      // Set CTC distribution data
+      const ctcDataArray = Array.isArray(ctcData.distribution) 
+        ? ctcData.distribution 
+        : [];
+      console.log('[Dashboard] Setting CTC data:', { count: ctcDataArray.length, data: ctcDataArray.slice(0, 5) });
+      setCtcData(ctcDataArray);
+      
+      // Set hiring partners (companies list)
+      setHiringPartners(companiesData.companies || []);
+      
+      // Set CTC stats
+      setCtcStats({
+        averageCTC: ctcData.averageCTC || 0,
+        medianCTC: ctcData.medianCTC || 0,
+        highestCTC: ctcData.highestCTC || 0,
+        lowestCTC: ctcData.lowestCTC || 0
+      });
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load placement statistics');
-      console.error('Error fetching placement stats:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to load placement statistics';
+      setError(errorMessage);
+      console.error('[Dashboard] Error fetching placement stats:', {
+        error: err,
+        message: errorMessage,
+        response: err.response?.data,
+        status: err.response?.status
+      });
     } finally {
       setLoading(false);
     }
@@ -300,76 +359,33 @@ const Dashboard = () => {
     };
   }).sort((a, b) => (b.percent || 0) - (a.percent || 0)); // Sort by placement percentage descending
 
-  // Check if all schools are selected or none selected
-  const allSchoolsSelected = selectedSchools.length === schoolDistribution.length && schoolDistribution.length > 0;
+  // Check if no schools are selected (show all data)
   const noSchoolsSelected = selectedSchools.length === 0;
-  const showAllData = allSchoolsSelected || noSchoolsSelected;
-
-  // Get aggregated stats for selected schools
-  const getSelectedSchoolsStats = () => {
-    if (showAllData) return null;
-    
-    const selectedStats = schoolStats.filter(stat => selectedSchools.includes(stat.school));
-    if (selectedStats.length === 0) return null;
-
-    const aggregated = selectedStats.reduce((acc, stat) => {
-      acc.totalStudents += stat.totalStudents || 0;
-      acc.placedStudents += stat.placedStudents || 0;
-      return acc;
-    }, { totalStudents: 0, placedStudents: 0 });
-
-    const placementPercent = aggregated.totalStudents > 0
-      ? ((aggregated.placedStudents / aggregated.totalStudents) * 100).toFixed(2)
-      : 0;
-
-    return {
-      totalStudents: aggregated.totalStudents,
-      placedStudents: aggregated.placedStudents,
-      placementPercent: parseFloat(placementPercent)
-    };
-  };
-
-  const selectedSchoolsStats = getSelectedSchoolsStats();
+  const showAllData = noSchoolsSelected;
+  const multipleSchoolsSelected = selectedSchools.length >= 2;
 
   // Calculate filtered metrics based on selected schools
-  const displayStats = !showAllData && selectedSchoolsStats ? {
-    totalStudents: selectedSchoolsStats.totalStudents || 0,
-    totalOffers: selectedSchoolsStats.placedStudents || 0,
-    totalOffersPercent: selectedSchoolsStats.placementPercent || 0,
-    totalPlacedCombined: selectedSchoolsStats.placedStudents || 0,
-    totalPlacedCombinedPercent: selectedSchoolsStats.placementPercent || 0,
-    totalPlaced: selectedSchoolsStats.placedStudents || 0,
-    totalPlacedPercent: selectedSchoolsStats.placementPercent || 0,
-    totalInternships: 0,
-    totalInternshipsPercent: 0,
-    totalInternshipCumFulltime: 0,
-    totalInternshipCumFulltimePercent: 0,
-    placedStudents: selectedSchoolsStats.placedStudents || 0,
-    placementRate: selectedSchoolsStats.placementPercent || 0,
-    uniqueCompanies: hiringPartners?.length || 0,
-    highestCTC: ctcStats?.highestCTC || 0,
-    averageCTC: ctcStats?.averageCTC || 0,
-    medianCTC: ctcStats?.medianCTC || 0,
-    lowestCTC: ctcStats?.lowestCTC || 0,
-  } : {
-    totalStudents,
-    totalOffers,
-    totalOffersPercent,
-    totalPlacedCombined,
-    totalPlacedCombinedPercent,
-    totalPlaced,
-    totalPlacedPercent,
-    totalInternships,
-    totalInternshipsPercent,
-    totalInternshipCumFulltime,
-    totalInternshipCumFulltimePercent,
-    placedStudents,
-    placementRate,
-    uniqueCompanies,
-    highestCTC,
-    averageCTC,
-    medianCTC,
-    lowestCTC,
+  // When schools are selected, use the backend-filtered overall stats
+  // When all schools are shown, use the overall stats as-is
+  const displayStats = {
+    totalStudents: overallStats?.totalStudents || 0,
+    totalOffers: overallStats?.totalOffersRecords || 0,
+    totalOffersPercent: overallStats?.totalOffersPercent || 0,
+    totalPlacedCombined: overallStats?.totalPlacedCombined || 0,
+    totalPlacedCombinedPercent: overallStats?.totalPlacedCombinedPercent || 0,
+    totalPlaced: overallStats?.totalPlaced || 0,
+    totalPlacedPercent: overallStats?.totalPlacedPercent || 0,
+    totalInternships: overallStats?.totalInternships || 0,
+    totalInternshipsPercent: overallStats?.totalInternshipsPercent || 0,
+    totalInternshipCumFulltime: overallStats?.totalInternshipCumFulltime || 0,
+    totalInternshipCumFulltimePercent: overallStats?.totalInternshipCumFulltimePercent || 0,
+    placedStudents: overallStats?.totalPlacedStudents || 0,
+    placementRate: overallStats?.overallPlacementPercent || 0,
+    uniqueCompanies: overallStats?.uniqueHiringCompanies || 0,
+    highestCTC: ctcStats?.highestCTC ?? overallStats?.highestCTCLPA ?? 0,
+    averageCTC: ctcStats?.averageCTC ?? overallStats?.averageCTCLPA ?? 0,
+    medianCTC: ctcStats?.medianCTC ?? overallStats?.medianCTCLPA ?? 0,
+    lowestCTC: ctcStats?.lowestCTC ?? overallStats?.lowestCTCLPA ?? 0,
   };
 
   // Filter school distribution and placement by selected schools
@@ -381,14 +397,15 @@ const Dashboard = () => {
     ? placementBySchool
     : placementBySchool.filter(row => selectedSchools.includes(row.school));
 
-  // Handle school selection toggle
+  // Handle school selection toggle - supports multiple schools
   const handleSchoolToggle = (schoolName) => {
     setSelectedSchools(prev => {
       if (prev.includes(schoolName)) {
         // Remove from selection
-        return prev.filter(name => name !== schoolName);
+        const newSelection = prev.filter(s => s !== schoolName);
+        return newSelection;
       } else {
-        // Add to selection
+        // Add to selection (allow multiple)
         return [...prev, schoolName];
       }
     });
@@ -404,21 +421,39 @@ const Dashboard = () => {
               <HStack justify="space-between" align="center" mb={2}>
                 <Box>
                   <Heading as="h1" fontSize={{ base: '2xl', sm: '3xl' }} fontWeight="extrabold" color="gray.800">
-                    {showAllData 
+                    {!isSuperAdmin || showAllData
                       ? 'Admin Overview' 
-                      : selectedSchools.length === 1
-                        ? `${selectedSchools[0]} Overview`
-                        : `${selectedSchools.length} Schools Selected`
+                      : multipleSchoolsSelected
+                      ? `${selectedSchools.length} Schools Selected`
+                      : `${selectedSchools[0]} Overview`
                     }
                   </Heading>
                   <Text fontSize="lg" fontWeight="medium" color="gray.500" mt={1}>
-                    {showAllData 
+                    {showAllData || !isSuperAdmin
                       ? 'Key metrics and placement statistics.' 
-                      : `Metrics and statistics for selected ${selectedSchools.length === 1 ? 'school' : 'schools'}.`
+                      : multipleSchoolsSelected
+                      ? `Combined metrics and statistics for ${selectedSchools.length} selected schools.`
+                      : `Metrics and statistics for selected school.`
                     }
                   </Text>
+                  {isSuperAdmin && multipleSchoolsSelected && (
+                    <HStack mt={2} spacing={2} flexWrap="wrap">
+                      {selectedSchools.map((school, idx) => (
+                        <Badge
+                          key={idx}
+                          colorScheme="blue"
+                          fontSize="sm"
+                          px={3}
+                          py={1}
+                          borderRadius="full"
+                        >
+                          {school}
+                        </Badge>
+                      ))}
+                    </HStack>
+                  )}
                 </Box>
-                {!showAllData && (
+                {isSuperAdmin && !showAllData && (
                   <Button
                     onClick={() => setSelectedSchools([])}
                     colorScheme="gray"
@@ -464,22 +499,34 @@ const Dashboard = () => {
 
                 {/* Student Distribution by School */}
                 <Box>
-                  <Heading as="h2" fontSize="xl" fontWeight="bold" color="gray.700" mb={4}>
-                    Student Distribution by School
-                  </Heading>
+                  <HStack justify="space-between" align="center" mb={4}>
+                    <Heading as="h2" fontSize="xl" fontWeight="bold" color="gray.700">
+                      Student Distribution by School
+                    </Heading>
+                    {isSuperAdmin && multipleSchoolsSelected && (
+                      <Text fontSize="sm" color="blue.600" fontWeight="medium">
+                        {selectedSchools.length} school{selectedSchools.length > 1 ? 's' : ''} selected
+                      </Text>
+                    )}
+                  </HStack>
+                  {isSuperAdmin && (
+                    <Text fontSize="sm" color="gray.500" mb={3}>
+                      Click on schools to filter. Select multiple schools to view combined statistics.
+                    </Text>
+                  )}
                   <SimpleGrid columns={{ base: 2, sm: 4, lg: 8 }} spacing={4} mb={8}>
                     {schoolDistribution.length > 0 ? (
                       schoolDistribution.map((school) => {
                         // Determine if this is the top school by student count
                         const maxCount = Math.max(...schoolDistribution.map(s => s.total || 0));
                         const isTopSchool = school.total === maxCount && maxCount > 0;
-                        const isSelected = selectedSchools.includes(school.name);
+                        const isSelected = isSuperAdmin && selectedSchools.includes(school.name);
                         
                         return (
                           <Box
                             key={school.name}
-                            as="button"
-                            onClick={() => handleSchoolToggle(school.name)}
+                            as={isSuperAdmin ? "button" : "div"}
+                            onClick={isSuperAdmin ? () => handleSchoolToggle(school.name) : undefined}
                             bg={isSelected ? '#172e36' : cardBg}
                             p={3}
                             borderRadius="xl"
@@ -489,12 +536,12 @@ const Dashboard = () => {
                             borderColor={isSelected ? '#d1a85d' : 'transparent'}
                             borderBottom={isSelected ? 'none' : '2px solid'}
                             borderBottomColor={isSelected ? 'transparent' : (isTopSchool ? 'green.500' : 'blue.400')}
-                            _hover={{
+                            _hover={isSuperAdmin ? {
                               transform: 'scale(1.05)',
                               boxShadow: 'xl',
-                            }}
+                            } : {}}
                             transition="all 0.2s"
-                            cursor="pointer"
+                            cursor={isSuperAdmin ? "pointer" : "default"}
                           >
                             <Text fontSize="sm" fontWeight="semibold" color={isSelected ? 'white' : 'gray.700'}>
                               {school.name}
@@ -749,7 +796,7 @@ const Dashboard = () => {
 
                   <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
                     {/* Chart */}
-                    <Box gridColumn={{ base: '1', lg: 'span 2' }} h="80">
+                    <Box gridColumn={{ base: '1', lg: 'span 2' }} h="400px" minH="400px">
                       {distribution.labels.length > 0 ? (
                         <Line data={chartData} options={chartOptions} />
                       ) : (

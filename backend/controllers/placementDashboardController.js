@@ -1,219 +1,247 @@
 import { getSupabaseClient } from '../database/supabase.js';
 
-// @desc    Get overall placement dashboard statistics
-// @route   GET /api/dashboard/placement/overall
-// @access  Private (Admin only)
-export const getOverallPlacementStats = async (req, res) => {
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Normalize school name for comparison (trim, lowercase, normalize whitespace)
+ * @param {string} name - School name
+ * @returns {string} Normalized school name
+ */
+const normalizeSchoolName = (name) => {
+  if (!name) return '';
+  // Trim, lowercase, and normalize multiple spaces to single space
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+};
+
+/**
+ * Get school USNs from school filter (case-insensitive matching)
+ * Supports single school or multiple schools (comma-separated)
+ * @param {Object} supabase - Supabase client
+ * @param {string|Array} school - School name(s) - can be single string, comma-separated string, or array
+ * @returns {Promise<Array|null>} Array of USNs or null if no filter
+ */
+const getSchoolUSNs = async (supabase, school) => {
+  if (!school) return null;
+  
+  // Parse school parameter - support string, comma-separated string, or array
+  let schoolNames = [];
+  if (Array.isArray(school)) {
+    schoolNames = school.map(s => s.trim()).filter(s => s);
+  } else if (typeof school === 'string') {
+    // Check if it's comma-separated
+    if (school.includes(',')) {
+      schoolNames = school.split(',').map(s => s.trim()).filter(s => s);
+    } else {
+      schoolNames = [school.trim()];
+    }
+  }
+  
+  if (schoolNames.length === 0) return null;
+  
+  // Fetch all students to do case-insensitive matching
+  // (Supabase .in() is case-sensitive, so we need to filter manually)
+  const { data: allStudents, error: allStudentsError } = await supabase
+    .from('students')
+    .select('usn, school');
+
+  if (allStudentsError) throw allStudentsError;
+  
+  // Normalize all school names for comparison
+  const normalizedSchoolNames = schoolNames.map(name => normalizeSchoolName(name));
+  
+  // Find matching school names (case-insensitive, exact match after normalization)
+  const matchingUSNs = [];
+  
+  allStudents?.forEach(student => {
+    if (student.school) {
+      const normalizedStudentSchool = normalizeSchoolName(student.school);
+      // Check if this student's school matches any of the requested schools
+      if (normalizedSchoolNames.includes(normalizedStudentSchool)) {
+        matchingUSNs.push(student.usn);
+      }
+    }
+  });
+  
+  console.log(`[getSchoolUSNs] Filter: ${schoolNames.length} school(s) "${schoolNames.join(', ')}" -> Found ${matchingUSNs.length} matching students`);
+  
+  return matchingUSNs.length > 0 ? matchingUSNs : [];
+};
+
+/**
+ * Normalize company name for deduplication
+ * @param {string} name - Company name
+ * @returns {string} Normalized company name
+ */
+const normalizeCompanyName = (name) => {
+  if (!name) return '';
+  return name.trim().toLowerCase().replace(/-*\d+$/, '');
+};
+
+/**
+ * Check if offer indicates placement
+ * @param {Object} offer - Job offer object
+ * @returns {boolean} True if offer indicates placement
+ */
+const isPlacementOffer = (offer) => {
+  const jobType = (offer.job_type || '').trim().toLowerCase();
+  const interviewStatus = (offer.final_interview_status || '').toLowerCase();
+  const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
+  
+  const isPlacementByJobType = 
+    (jobType.includes('full time') || jobType.includes('fulltime')) && 
+    !jobType.includes('internship') && 
+    !jobType.includes('only');
+  
+  const isPlacementByStatus = 
+    interviewStatus.includes('selected') || 
+    offerLetterStatus.includes('accepted') || 
+    offerLetterStatus.includes('received');
+  
+  const isInternshipCumFulltime = 
+    jobType.includes('internship') && 
+    jobType.includes('cum') && 
+    jobType.includes('full time');
+  
+  return isPlacementByJobType || isPlacementByStatus || isInternshipCumFulltime;
+};
+
+// ==================== MAIN API ENDPOINTS ====================
+
+/**
+ * Get overall placement statistics
+ * @route GET /api/dashboard/placement/overall
+ * @access Private (Admin only)
+ * Returns: All main statistics (students, offers, placed, internships, etc.)
+ */
+export const getOverallStats = async (req, res) => {
   try {
     const supabase = getSupabaseClient();
+    // Only superadmins can filter by school - regular admins always see all data
+    const { school } = req.query;
+    const isSuperAdmin = req.user?.role === 'superadmin';
+    const schoolFilter = isSuperAdmin ? school : null;
+    const schoolUSNs = await getSchoolUSNs(supabase, schoolFilter);
 
-    // Get total students count
-    const { count: totalStudents, error: studentsError } = await supabase
+    // Handle empty result case
+    if (schoolUSNs !== null && schoolUSNs.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalStudents: 0,
+          totalOffers: 0,
+          totalOffersPercent: 0,
+          totalPlaced: 0,
+          totalPlacedPercent: 0,
+          totalPlacedCombined: 0,
+          totalPlacedCombinedPercent: 0,
+          totalInternships: 0,
+          totalInternshipsPercent: 0,
+          totalInternshipCumFulltime: 0,
+          totalInternshipCumFulltimePercent: 0,
+          totalPlacedStudents: 0,
+          overallPlacementPercent: 0
+        }
+      });
+    }
+
+    // Get total students
+    let studentsQuery = supabase
       .from('students')
       .select('*', { count: 'exact', head: true });
-
+    if (schoolUSNs !== null && schoolUSNs.length > 0) {
+      studentsQuery = studentsQuery.in('usn', schoolUSNs);
+    }
+    const { count: totalStudents, error: studentsError } = await studentsQuery;
     if (studentsError) throw studentsError;
 
-    // Get all job offers with job_type for categorization
-    const { data: allOffers, error: offersError } = await supabase
+    // Get all job offers
+    let offersQuery = supabase
       .from('job_offers')
-      .select('job_type');
-
+      .select('job_type, usn, final_interview_status, offer_letter_status');
+    if (schoolUSNs !== null && schoolUSNs.length > 0) {
+      offersQuery = offersQuery.in('usn', schoolUSNs);
+    }
+    const { data: allOffers, error: offersError } = await offersQuery;
     if (offersError) throw offersError;
 
-    // Calculate total offers count
+    // Calculate statistics
     const totalOffers = allOffers?.length || 0;
-
-    // Calculate Total Offers Percentage
     const totalOffersPercent = totalStudents > 0 
-      ? ((totalOffers / totalStudents) * 100).toFixed(2) 
-      : '0.00';
+      ? parseFloat(((totalOffers / totalStudents) * 100).toFixed(2))
+      : 0;
 
-    // Categorize offers by job_type
-    // Total Placed: job_type = "Full time" OR "Full Time PPO" (case-insensitive)
-    // Total Internships: job_type = "internship-only" (case-insensitive)
-    // Total Internship-cum-Fulltime: job_type = "Internship cum Full time" (case-insensitive)
+    // Categorize offers
     let totalPlaced = 0;
     let totalInternships = 0;
     let totalInternshipCumFulltime = 0;
+    const placedUSNs = new Set();
 
     allOffers?.forEach(offer => {
-      const jobType = (offer.job_type || '').trim();
-      const jobTypeLower = jobType.toLowerCase();
-      
-      // Check for Internship cum Full time first (most specific)
-      // Handle variations: "internship cum full time", "internship-cum-fulltime", etc.
-      if (jobTypeLower.includes('internship') && 
-          jobTypeLower.includes('cum') && 
-          jobTypeLower.includes('full time')) {
-        totalInternshipCumFulltime++;
-      }
-      // Check for Full time or Full Time PPO (both are considered placed)
-      // Handle variations: "full time", "full time ppo", "fulltime", etc.
-      else if ((jobTypeLower.includes('full time') || jobTypeLower.includes('fulltime')) && 
-               !jobTypeLower.includes('internship')) {
-        totalPlaced++;
-      }
-      // Check for internship-only (handle both "internship-only" and "internship only")
-      // Must contain "internship" and "only" but NOT "full time" or "cum"
-      else if (jobTypeLower.includes('internship') && 
-               jobTypeLower.includes('only') && 
-               !jobTypeLower.includes('full time') && 
-               !jobTypeLower.includes('cum')) {
-        totalInternships++;
-      }
-    });
-
-    // Calculate Total Placed (Full time + Internship cum Full time)
-    const totalPlacedCombined = totalPlaced + totalInternshipCumFulltime;
-    const totalPlacedCombinedPercent = totalStudents > 0 
-      ? ((totalPlacedCombined / totalStudents) * 100).toFixed(2) 
-      : '0.00';
-
-    // Calculate percentages for each category
-    const totalPlacedPercent = totalStudents > 0 
-      ? ((totalPlaced / totalStudents) * 100).toFixed(2) 
-      : '0.00';
-    
-    const totalInternshipsPercent = totalStudents > 0 
-      ? ((totalInternships / totalStudents) * 100).toFixed(2) 
-      : '0.00';
-    
-    const totalInternshipCumFulltimePercent = totalStudents > 0 
-      ? ((totalInternshipCumFulltime / totalStudents) * 100).toFixed(2) 
-      : '0.00';
-
-    // Get all job offers to determine placed students (for backward compatibility)
-    // A student is considered "placed" if they have at least one offer with final_interview_status = "Selected" (case-insensitive)
-    // or if offer_letter_status indicates acceptance
-    const { data: allOffersWithStatus, error: offersError2 } = await supabase
-      .from('job_offers')
-      .select('usn, final_interview_status, offer_letter_status');
-
-    if (offersError2) throw offersError2;
-
-    // Filter for placed students - check if status contains "selected" (case-insensitive)
-    // or if offer_letter_status indicates acceptance
-    const placedUSNs = new Set();
-    allOffersWithStatus?.forEach(offer => {
+      const jobType = (offer.job_type || '').trim().toLowerCase();
       const interviewStatus = (offer.final_interview_status || '').toLowerCase();
       const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
       
-      // Consider placed if:
-      // 1. final_interview_status contains "selected" (case-insensitive)
-      // 2. offer_letter_status contains "accepted" or "received" (case-insensitive)
+      // Check for placed students
       if (interviewStatus.includes('selected') || 
           offerLetterStatus.includes('accepted') || 
           offerLetterStatus.includes('received')) {
         placedUSNs.add(offer.usn);
       }
+      
+      // Categorize by job type
+      if (jobType.includes('internship') && jobType.includes('cum') && jobType.includes('full time')) {
+        totalInternshipCumFulltime++;
+      } else if ((jobType.includes('full time') || jobType.includes('fulltime')) && 
+                 !jobType.includes('internship')) {
+        totalPlaced++;
+      } else if (jobType.includes('internship') && 
+                 jobType.includes('only') && 
+                 !jobType.includes('full time') && 
+                 !jobType.includes('cum')) {
+        totalInternships++;
+      }
     });
 
+    const totalPlacedCombined = totalPlaced + totalInternshipCumFulltime;
     const totalPlacedStudents = placedUSNs.size;
 
-    // Calculate overall placement percentage (for backward compatibility)
+    // Calculate percentages
+    const totalPlacedPercent = totalStudents > 0 
+      ? parseFloat(((totalPlaced / totalStudents) * 100).toFixed(2))
+      : 0;
+    const totalPlacedCombinedPercent = totalStudents > 0 
+      ? parseFloat(((totalPlacedCombined / totalStudents) * 100).toFixed(2))
+      : 0;
+    const totalInternshipsPercent = totalStudents > 0 
+      ? parseFloat(((totalInternships / totalStudents) * 100).toFixed(2))
+      : 0;
+    const totalInternshipCumFulltimePercent = totalStudents > 0 
+      ? parseFloat(((totalInternshipCumFulltime / totalStudents) * 100).toFixed(2))
+      : 0;
     const overallPlacementPercent = totalStudents > 0 
-      ? ((totalPlacedStudents / totalStudents) * 100).toFixed(2) 
-      : '0.00';
-
-    // Get unique hiring companies
-    const { data: companiesData, error: companiesError } = await supabase
-      .from('job_offers')
-      .select('company_name')
-      .not('company_name', 'is', null);
-
-    if (companiesError) throw companiesError;
-
-    // Normalize company names: trim, lowercase, and remove trailing dashes and numbers
-    const normalizeCompanyName = (name) => {
-      if (!name) return '';
-      // Trim, lowercase, and remove trailing dashes/hyphens and numbers
-      return name.trim().toLowerCase().replace(/-*\d+$/, '');
-    };
-    
-    const normalizedCompanies = new Set();
-    companiesData?.forEach(offer => {
-      if (offer.company_name) {
-        const normalized = normalizeCompanyName(offer.company_name);
-        normalizedCompanies.add(normalized);
-      }
-    });
-    const uniqueHiringCompanies = normalizedCompanies.size;
-
-    // Get highest and lowest CTC from placed offers only
-    const { data: ctcData, error: ctcError } = await supabase
-      .from('job_offers')
-      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status');
-
-    if (ctcError) throw ctcError;
-
-    // Filter for placed students only
-    const placedOffers = ctcData?.filter(offer => {
-      const interviewStatus = (offer.final_interview_status || '').toLowerCase();
-      const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
-      
-      return interviewStatus.includes('selected') || 
-             offerLetterStatus.includes('accepted') || 
-             offerLetterStatus.includes('received');
-    }) || [];
-
-    let highestCTC = null;
-    let lowestCTC = null;
-    let averageCTC = null;
-    let medianCTC = null;
-
-    if (placedOffers.length > 0) {
-      // Extract all CTC values (prefer max, fallback to min)
-      const allCTCs = [];
-      placedOffers.forEach(offer => {
-        const ctc = parseFloat(offer.ctc_max_lpa || offer.ctc_min_lpa);
-        if (!isNaN(ctc) && ctc > 0) {
-          allCTCs.push(ctc);
-        }
-      });
-
-      if (allCTCs.length > 0) {
-        highestCTC = Math.max(...allCTCs);
-        lowestCTC = Math.min(...allCTCs);
-        
-        // Calculate average
-        averageCTC = allCTCs.reduce((sum, val) => sum + val, 0) / allCTCs.length;
-        
-        // Calculate median
-        const sorted = [...allCTCs].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        medianCTC = sorted.length % 2 === 0
-          ? (sorted[mid - 1] + sorted[mid]) / 2
-          : sorted[mid];
-      }
-    }
+      ? parseFloat(((totalPlacedStudents / totalStudents) * 100).toFixed(2))
+      : 0;
 
     res.status(200).json({
       success: true,
       data: {
         totalStudents: totalStudents || 0,
-        totalOffersRecords: totalOffers || 0,
-        totalOffersPercent: parseFloat(totalOffersPercent),
-        totalPlacedCombined: totalPlacedCombined,
-        totalPlacedCombinedPercent: parseFloat(totalPlacedCombinedPercent),
-        totalPlaced: totalPlaced,
-        totalPlacedPercent: parseFloat(totalPlacedPercent),
-        totalInternships: totalInternships,
-        totalInternshipsPercent: parseFloat(totalInternshipsPercent),
-        totalInternshipCumFulltime: totalInternshipCumFulltime,
-        totalInternshipCumFulltimePercent: parseFloat(totalInternshipCumFulltimePercent),
-        // Backward compatibility fields
-        totalPlacedStudents: totalPlacedStudents,
-        overallPlacementPercent: parseFloat(overallPlacementPercent),
-        uniqueHiringCompanies: uniqueHiringCompanies,
-        highestCTCLPA: highestCTC,
-        lowestCTCLPA: lowestCTC,
-        averageCTCLPA: averageCTC ? parseFloat(averageCTC.toFixed(2)) : null,
-        medianCTCLPA: medianCTC ? parseFloat(medianCTC.toFixed(2)) : null
+        totalOffers,
+        totalOffersPercent,
+        totalPlaced,
+        totalPlacedPercent,
+        totalPlacedCombined,
+        totalPlacedCombinedPercent,
+        totalInternships,
+        totalInternshipsPercent,
+        totalInternshipCumFulltime,
+        totalInternshipCumFulltimePercent,
+        totalPlacedStudents,
+        overallPlacementPercent
       }
     });
   } catch (error) {
-    console.error('Error fetching overall placement stats:', error);
+    console.error('Error fetching overall stats:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching overall placement statistics',
@@ -222,96 +250,170 @@ export const getOverallPlacementStats = async (req, res) => {
   }
 };
 
-// @desc    Get placement statistics by school
-// @route   GET /api/dashboard/placement/by-school
-// @access  Private (Admin only)
-export const getPlacementBySchool = async (req, res) => {
+/**
+ * Get CTC statistics
+ * @route GET /api/dashboard/placement/ctc
+ * @access Private (Admin only)
+ * Returns: All CTC statistics (average, median, highest, lowest, distribution array)
+ */
+export const getCTCStats = async (req, res) => {
   try {
     const supabase = getSupabaseClient();
+    // Only superadmins can filter by school - regular admins always see all data
+    const { school } = req.query;
+    const isSuperAdmin = req.user?.role === 'superadmin';
+    const schoolFilter = isSuperAdmin ? school : null;
+    const schoolUSNs = await getSchoolUSNs(supabase, schoolFilter);
 
-    // Get all students grouped by school
-    const { data: studentsData, error: studentsError } = await supabase
-      .from('students')
-      .select('usn, school');
+    // Handle empty result case
+    if (schoolUSNs !== null && schoolUSNs.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          averageCTC: 0,
+          medianCTC: 0,
+          highestCTC: 0,
+          lowestCTC: 0,
+          distribution: []
+        }
+      });
+    }
 
-    if (studentsError) throw studentsError;
-
-    // Get all job offers with placement status
-    const { data: offersData, error: offersError } = await supabase
+    // Get CTC data
+    let ctcQuery = supabase
       .from('job_offers')
-      .select('usn, final_interview_status, offer_letter_status');
+      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status, job_type, usn');
+    if (schoolUSNs !== null && schoolUSNs.length > 0) {
+      ctcQuery = ctcQuery.in('usn', schoolUSNs);
+    }
+    const { data: ctcData, error: ctcError } = await ctcQuery;
+    if (ctcError) throw ctcError;
 
-    if (offersError) throw offersError;
+    // Filter for placed offers
+    const placedOffers = ctcData?.filter(offer => isPlacementOffer(offer)) || [];
 
-    // Create a map of school to students
-    const schoolStudentsMap = {};
-    studentsData?.forEach(student => {
-      const school = student.school || 'Unknown';
-      if (!schoolStudentsMap[school]) {
-        schoolStudentsMap[school] = {
-          totalStudents: 0,
-          studentUSNs: new Set()
-        };
-      }
-      schoolStudentsMap[school].totalStudents++;
-      schoolStudentsMap[school].studentUSNs.add(student.usn);
-    });
-
-    // Create a map of placed students (USNs with selected status)
-    const placedUSNs = new Set();
-    offersData?.forEach(offer => {
-      const interviewStatus = (offer.final_interview_status || '').toLowerCase();
-      const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
-      
-      // Consider placed if:
-      // 1. final_interview_status contains "selected" (case-insensitive)
-      // 2. offer_letter_status contains "accepted" or "received" (case-insensitive)
-      if (interviewStatus.includes('selected') || 
-          offerLetterStatus.includes('accepted') || 
-          offerLetterStatus.includes('received')) {
-        placedUSNs.add(offer.usn);
+    // Extract CTC values
+    const ctcValues = [];
+    placedOffers.forEach(offer => {
+      const ctcMax = parseFloat(offer.ctc_max_lpa);
+      const ctcMin = parseFloat(offer.ctc_min_lpa);
+      const ctc = !isNaN(ctcMax) && ctcMax > 0 ? ctcMax : (!isNaN(ctcMin) && ctcMin > 0 ? ctcMin : null);
+      if (ctc !== null && ctc > 0) {
+        ctcValues.push(ctc);
       }
     });
 
-    // Calculate placement stats by school
-    const schoolStats = Object.keys(schoolStudentsMap).map(school => {
-      const schoolData = schoolStudentsMap[school];
-      const placedCount = Array.from(schoolData.studentUSNs).filter(usn => 
-        placedUSNs.has(usn)
-      ).length;
+    // Calculate statistics
+    let averageCTC = 0;
+    let medianCTC = 0;
+    let highestCTC = 0;
+    let lowestCTC = 0;
+
+    if (ctcValues.length > 0) {
+      highestCTC = Math.max(...ctcValues);
+      lowestCTC = Math.min(...ctcValues);
+      averageCTC = ctcValues.reduce((sum, val) => sum + val, 0) / ctcValues.length;
       
-      const placementPercent = schoolData.totalStudents > 0
-        ? ((placedCount / schoolData.totalStudents) * 100).toFixed(2)
-        : '0.00';
-
-      return {
-        school: school,
-        totalStudents: schoolData.totalStudents,
-        placedStudents: placedCount,
-        placementPercent: parseFloat(placementPercent)
-      };
-    });
-
-    // Sort by school name
-    schoolStats.sort((a, b) => a.school.localeCompare(b.school));
+      const sorted = [...ctcValues].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      medianCTC = sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+    }
 
     res.status(200).json({
       success: true,
-      data: schoolStats
+      data: {
+        averageCTC: parseFloat(averageCTC.toFixed(2)),
+        medianCTC: parseFloat(medianCTC.toFixed(2)),
+        highestCTC: parseFloat(highestCTC.toFixed(2)),
+        lowestCTC: parseFloat(lowestCTC.toFixed(2)),
+        distribution: ctcValues
+      }
     });
   } catch (error) {
-    console.error('Error fetching placement by school:', error);
+    console.error('Error fetching CTC stats:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching placement statistics by school',
+      message: 'Error fetching CTC statistics',
       error: error.message
     });
   }
 };
 
-// @desc    Get school distribution (students count by school)
-// @route   GET /api/dashboard/placement/school-distribution
-// @access  Private (Admin only)
+/**
+ * Get company statistics
+ * @route GET /api/dashboard/placement/companies
+ * @access Private (Admin only)
+ * Returns: Company count and list of unique companies
+ */
+export const getCompanyStats = async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    // Only superadmins can filter by school - regular admins always see all data
+    const { school } = req.query;
+    const isSuperAdmin = req.user?.role === 'superadmin';
+    const schoolFilter = isSuperAdmin ? school : null;
+    const schoolUSNs = await getSchoolUSNs(supabase, schoolFilter);
+
+    // Handle empty result case
+    if (schoolUSNs !== null && schoolUSNs.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          uniqueCompanies: 0,
+          companies: []
+        }
+      });
+    }
+
+    // Get company data
+    let companiesQuery = supabase
+      .from('job_offers')
+      .select('company_name, usn')
+      .not('company_name', 'is', null);
+    if (schoolUSNs !== null && schoolUSNs.length > 0) {
+      companiesQuery = companiesQuery.in('usn', schoolUSNs);
+    }
+    const { data: companiesData, error: companiesError } = await companiesQuery;
+    if (companiesError) throw companiesError;
+
+    // Normalize and deduplicate company names
+    const normalizedMap = new Map();
+    companiesData?.forEach(offer => {
+      if (offer.company_name) {
+        const normalized = normalizeCompanyName(offer.company_name);
+        if (!normalizedMap.has(normalized)) {
+          normalizedMap.set(normalized, offer.company_name.trim());
+        }
+      }
+    });
+
+    const uniqueCompanies = Array.from(normalizedMap.values());
+
+    res.status(200).json({
+      success: true,
+      data: {
+        uniqueCompanies: uniqueCompanies.length,
+        companies: uniqueCompanies
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching company stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching company statistics',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get school distribution
+ * @route GET /api/dashboard/placement/schools
+ * @access Private (Admin only)
+ * Returns: School distribution with student counts
+ */
 export const getSchoolDistribution = async (req, res) => {
   try {
     const supabase = getSupabaseClient();
@@ -323,16 +425,14 @@ export const getSchoolDistribution = async (req, res) => {
 
     if (studentsError) throw studentsError;
 
-    // Get all job offers with job_type to categorize
+    // Get all job offers
     const { data: offersData, error: offersError } = await supabase
       .from('job_offers')
       .select('usn, job_type');
 
     if (offersError) throw offersError;
 
-    // Categorize offers by job_type
-    // If job_type contains "full time" (case-insensitive) → placement
-    // If job_type contains "internship" (case-insensitive) → internship-only
+    // Categorize offers
     const studentsWithPlacement = new Set();
     const studentsWithInternship = new Set();
     const studentsWithAnyOffer = new Set();
@@ -348,7 +448,7 @@ export const getSchoolDistribution = async (req, res) => {
       }
     });
 
-    // Count students by school and categorize offers
+    // Count students by school
     const schoolCounts = {};
     const schoolPlacementCounts = {};
     const schoolInternshipCounts = {};
@@ -364,7 +464,6 @@ export const getSchoolDistribution = async (req, res) => {
         schoolAnyOfferCounts[school] = new Set();
       }
       
-      // Categorize students by offer type
       if (studentsWithPlacement.has(student.usn)) {
         schoolPlacementCounts[school].add(student.usn);
       }
@@ -402,268 +501,89 @@ export const getSchoolDistribution = async (req, res) => {
   }
 };
 
-// @desc    Get CTC distribution for chart
-// @route   GET /api/dashboard/placement/ctc-distribution
-// @access  Private (Admin only)
-export const getCTCDistribution = async (req, res) => {
+/**
+ * Get placement statistics by school
+ * @route GET /api/dashboard/placement/by-school
+ * @access Private (Admin only)
+ * Returns: Placement statistics grouped by school
+ */
+export const getPlacementBySchool = async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { school } = req.query;
 
-    // Build query - join with students table if school filter is provided
-    let query = supabase
+    // Get all students grouped by school
+    const { data: studentsData, error: studentsError } = await supabase
+      .from('students')
+      .select('usn, school');
+
+    if (studentsError) throw studentsError;
+
+    // Get all job offers with placement status
+    const { data: offersData, error: offersError } = await supabase
       .from('job_offers')
-      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status, usn');
+      .select('usn, final_interview_status, offer_letter_status');
 
-    // If school filter is provided, we need to join with students table
-    if (school) {
-      // Handle multiple schools (comma-separated)
-      const schools = school.split(',').map(s => s.trim()).filter(Boolean);
-      
-      // Get all USNs for the selected schools
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('usn')
-        .in('school', schools);
+    if (offersError) throw offersError;
 
-      if (studentsError) throw studentsError;
-
-      const schoolUSNs = studentsData?.map(s => s.usn) || [];
-      
-      if (schoolUSNs.length === 0) {
-        return res.status(200).json({
-          success: true,
-          data: []
-        });
+    // Create a map of school to students
+    const schoolStudentsMap = {};
+    studentsData?.forEach(student => {
+      const school = student.school || 'Unknown';
+      if (!schoolStudentsMap[school]) {
+        schoolStudentsMap[school] = {
+          totalStudents: 0,
+          studentUSNs: new Set()
+        };
       }
+      schoolStudentsMap[school].totalStudents++;
+      schoolStudentsMap[school].studentUSNs.add(student.usn);
+    });
 
-      // Filter job offers by USNs
-      query = query.in('usn', schoolUSNs);
-    }
-
-    const { data: ctcData, error: ctcError } = await query;
-
-    if (ctcError) throw ctcError;
-
-    // Filter for placed students only (selected status)
-    const placedOffers = ctcData?.filter(offer => {
+    // Create a map of placed students
+    const placedUSNs = new Set();
+    offersData?.forEach(offer => {
       const interviewStatus = (offer.final_interview_status || '').toLowerCase();
       const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
       
-      return interviewStatus.includes('selected') || 
-             offerLetterStatus.includes('accepted') || 
-             offerLetterStatus.includes('received');
-    }) || [];
-
-    // Extract all CTC values (prefer max, fallback to min)
-    const ctcValues = [];
-    placedOffers.forEach(offer => {
-      const ctc = parseFloat(offer.ctc_max_lpa || offer.ctc_min_lpa);
-      if (!isNaN(ctc) && ctc > 0) {
-        ctcValues.push(ctc);
+      if (interviewStatus.includes('selected') || 
+          offerLetterStatus.includes('accepted') || 
+          offerLetterStatus.includes('received')) {
+        placedUSNs.add(offer.usn);
       }
     });
 
+    // Calculate placement stats by school
+    const schoolStats = Object.keys(schoolStudentsMap).map(school => {
+      const schoolData = schoolStudentsMap[school];
+      const placedCount = Array.from(schoolData.studentUSNs).filter(usn => 
+        placedUSNs.has(usn)
+      ).length;
+      
+      const placementPercent = schoolData.totalStudents > 0
+        ? parseFloat(((placedCount / schoolData.totalStudents) * 100).toFixed(2))
+        : 0;
+
+      return {
+        school: school,
+        totalStudents: schoolData.totalStudents,
+        placedStudents: placedCount,
+        placementPercent: placementPercent
+      };
+    });
+
+    // Sort by school name
+    schoolStats.sort((a, b) => a.school.localeCompare(b.school));
+
     res.status(200).json({
       success: true,
-      data: ctcValues
+      data: schoolStats
     });
   } catch (error) {
-    console.error('Error fetching CTC distribution:', error);
+    console.error('Error fetching placement by school:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching CTC distribution',
+      message: 'Error fetching placement statistics by school',
       error: error.message
     });
   }
 };
-
-// @desc    Get hiring partners (unique companies)
-// @route   GET /api/dashboard/placement/hiring-partners
-// @access  Private (Admin only)
-export const getHiringPartners = async (req, res) => {
-  try {
-    const supabase = getSupabaseClient();
-    const { school } = req.query;
-
-    // Build query
-    let query = supabase
-      .from('job_offers')
-      .select('company_name, usn')
-      .not('company_name', 'is', null);
-
-    // If school filter is provided, filter by school USNs
-    if (school) {
-      // Handle multiple schools (comma-separated)
-      const schools = school.split(',').map(s => s.trim()).filter(Boolean);
-      
-      // Get all USNs for the selected schools
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('usn')
-        .in('school', schools);
-
-      if (studentsError) throw studentsError;
-
-      const schoolUSNs = studentsData?.map(s => s.usn) || [];
-      
-      if (schoolUSNs.length === 0) {
-        return res.status(200).json({
-          success: true,
-          data: []
-        });
-      }
-
-      // Filter job offers by USNs
-      query = query.in('usn', schoolUSNs);
-    }
-
-    const { data: companiesData, error: companiesError } = await query;
-
-    if (companiesError) throw companiesError;
-
-    // Normalize company names: trim, lowercase, and remove trailing dashes and numbers
-    // Use a Map to track normalized -> original name mapping (keep the first occurrence)
-    const normalizedMap = new Map();
-    
-    const normalizeCompanyName = (name) => {
-      if (!name) return '';
-      // Trim, lowercase, and remove trailing dashes/hyphens and numbers
-      return name.trim().toLowerCase().replace(/-*\d+$/, '');
-    };
-    
-    companiesData?.forEach(offer => {
-      if (offer.company_name) {
-        const normalized = normalizeCompanyName(offer.company_name);
-        // Only keep the first occurrence of each normalized name
-        if (!normalizedMap.has(normalized)) {
-          normalizedMap.set(normalized, offer.company_name.trim());
-        }
-      }
-    });
-
-    // Get unique company names (using original names from the map)
-    const uniqueCompanies = Array.from(normalizedMap.values());
-
-    res.status(200).json({
-      success: true,
-      data: uniqueCompanies
-    });
-  } catch (error) {
-    console.error('Error fetching hiring partners:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching hiring partners',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get CTC statistics (average and median)
-// @route   GET /api/dashboard/placement/ctc-stats
-// @access  Private (Admin only)
-export const getCTCStats = async (req, res) => {
-  try {
-    const supabase = getSupabaseClient();
-    const { school } = req.query;
-
-    // Build query
-    let query = supabase
-      .from('job_offers')
-      .select('ctc_max_lpa, ctc_min_lpa, final_interview_status, offer_letter_status, usn');
-
-    // If school filter is provided, filter by school USNs
-    if (school) {
-      // Handle multiple schools (comma-separated)
-      const schools = school.split(',').map(s => s.trim()).filter(Boolean);
-      
-      // Get all USNs for the selected schools
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('usn')
-        .in('school', schools);
-
-      if (studentsError) throw studentsError;
-
-      const schoolUSNs = studentsData?.map(s => s.usn) || [];
-      
-      if (schoolUSNs.length === 0) {
-        return res.status(200).json({
-          success: true,
-          data: {
-            averageCTC: 0,
-            medianCTC: 0,
-            highestCTC: 0,
-            lowestCTC: 0
-          }
-        });
-      }
-
-      // Filter job offers by USNs
-      query = query.in('usn', schoolUSNs);
-    }
-
-    const { data: ctcData, error: ctcError } = await query;
-
-    if (ctcError) throw ctcError;
-
-    // Filter for placed students only
-    const placedOffers = ctcData?.filter(offer => {
-      const interviewStatus = (offer.final_interview_status || '').toLowerCase();
-      const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
-      
-      return interviewStatus.includes('selected') || 
-             offerLetterStatus.includes('accepted') || 
-             offerLetterStatus.includes('received');
-    }) || [];
-
-    // Extract all CTC values (prefer max, fallback to min)
-    const ctcValues = [];
-    placedOffers.forEach(offer => {
-      const ctc = parseFloat(offer.ctc_max_lpa || offer.ctc_min_lpa);
-      if (!isNaN(ctc) && ctc > 0) {
-        ctcValues.push(ctc);
-      }
-    });
-
-    // Calculate statistics
-    let averageCTC = 0;
-    let medianCTC = 0;
-    let highestCTC = 0;
-    let lowestCTC = 0;
-
-    if (ctcValues.length > 0) {
-      // Calculate average
-      averageCTC = ctcValues.reduce((sum, val) => sum + val, 0) / ctcValues.length;
-
-      // Calculate median
-      const sorted = [...ctcValues].sort((a, b) => a - b);
-      const mid = Math.floor(sorted.length / 2);
-      medianCTC = sorted.length % 2 === 0
-        ? (sorted[mid - 1] + sorted[mid]) / 2
-        : sorted[mid];
-
-      // Calculate highest and lowest
-      highestCTC = Math.max(...ctcValues);
-      lowestCTC = Math.min(...ctcValues);
-    }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        averageCTC: parseFloat(averageCTC.toFixed(2)),
-        medianCTC: parseFloat(medianCTC.toFixed(2)),
-        highestCTC: parseFloat(highestCTC.toFixed(2)),
-        lowestCTC: parseFloat(lowestCTC.toFixed(2))
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching CTC stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching CTC statistics',
-      error: error.message
-    });
-  }
-};
-
