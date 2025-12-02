@@ -4,6 +4,7 @@
 // This file uses Gmail SMTP via Python script for sending OTP emails.
 // ============================================================================
 // this is a comment
+// this is also a commit
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
