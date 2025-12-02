@@ -494,12 +494,12 @@ const Dashboard = () => {
                 >
                   <Flex justify="space-between" align="center">
                     <Text fontSize="lg" fontWeight="medium" textTransform="uppercase" letterSpacing="widest" opacity={0.8}>
-                      Total Eligible Students
+                      Total Placement Seeking Students
                     </Text>
                     <Icon as={FiUsers} boxSize={8} color="#d1a85d" opacity={0.9} />
                   </Flex>
                   <Text fontSize="5xl" fontWeight="extrabold" mt={1}>
-                    {displayStats.totalStudents}
+                    703
                   </Text>
                 </Box>
 
@@ -1125,10 +1125,10 @@ const Dashboard = () => {
                               {displayStats.totalStudents}
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
-                              {displayStats.placedStudents}
+                              {displayStats.totalOffers}
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
-                              {displayStats.placementRate}%
+                              {displayStats.totalOffersPercent.toFixed(2)}%
                             </Td>
                           </Tr>
                         </Tbody>

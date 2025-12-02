@@ -575,9 +575,18 @@ export const getPlacementBySchool = async (req, res) => {
       }
     });
 
+    // Get all schools that have either students or offers (union of both)
+    const allSchools = new Set([
+      ...Object.keys(schoolStudentsMap),
+      ...Object.keys(schoolOffersCount)
+    ]);
+
     // Calculate placement stats by school
-    const schoolStats = Object.keys(schoolStudentsMap).map(school => {
-      const schoolData = schoolStudentsMap[school];
+    const schoolStats = Array.from(allSchools).map(school => {
+      const schoolData = schoolStudentsMap[school] || {
+        totalStudents: 0,
+        studentUSNs: new Set()
+      };
       const totalOffers = schoolOffersCount[school] || 0;
       const placedCount = Array.from(schoolData.studentUSNs).filter(usn => 
         placedUSNs.has(usn)
