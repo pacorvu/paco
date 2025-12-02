@@ -199,6 +199,9 @@ export const getOverallStats = async (req, res) => {
                  !jobType.includes('full time') && 
                  !jobType.includes('cum')) {
         totalInternships++;
+      } else {
+        // If offer doesn't fit into any category, count it as internship
+        totalInternships++;
       }
     });
 
@@ -445,6 +448,9 @@ export const getSchoolDistribution = async (req, res) => {
         studentsWithPlacement.add(offer.usn);
       } else if (jobType.includes('internship')) {
         studentsWithInternship.add(offer.usn);
+      } else {
+        // If offer doesn't fit into any category, count it as internship
+        studentsWithInternship.add(offer.usn);
       }
     });
 
@@ -518,7 +524,7 @@ export const getPlacementBySchool = async (req, res) => {
 
     if (studentsError) throw studentsError;
 
-    // Get all job offers with placement status
+    // Get all job offers (need usn to map to schools)
     const { data: offersData, error: offersError } = await supabase
       .from('job_offers')
       .select('usn, final_interview_status, offer_letter_status');
@@ -539,9 +545,26 @@ export const getPlacementBySchool = async (req, res) => {
       schoolStudentsMap[school].studentUSNs.add(student.usn);
     });
 
-    // Create a map of placed students
+    // Create a map of student USN to school for quick lookup
+    const usnToSchoolMap = {};
+    studentsData?.forEach(student => {
+      usnToSchoolMap[student.usn] = student.school || 'Unknown';
+    });
+
+    // Count all offers per school (including uncategorized ones)
+    const schoolOffersCount = {};
     const placedUSNs = new Set();
+    
     offersData?.forEach(offer => {
+      const school = usnToSchoolMap[offer.usn] || 'Unknown';
+      
+      // Count all offers (including uncategorized ones)
+      if (!schoolOffersCount[school]) {
+        schoolOffersCount[school] = 0;
+      }
+      schoolOffersCount[school]++;
+      
+      // Track placed students
       const interviewStatus = (offer.final_interview_status || '').toLowerCase();
       const offerLetterStatus = (offer.offer_letter_status || '').toLowerCase();
       
@@ -555,10 +578,17 @@ export const getPlacementBySchool = async (req, res) => {
     // Calculate placement stats by school
     const schoolStats = Object.keys(schoolStudentsMap).map(school => {
       const schoolData = schoolStudentsMap[school];
+      const totalOffers = schoolOffersCount[school] || 0;
       const placedCount = Array.from(schoolData.studentUSNs).filter(usn => 
         placedUSNs.has(usn)
       ).length;
       
+      // Calculate offer percentage (total offers / total students)
+      const offerPercent = schoolData.totalStudents > 0
+        ? parseFloat(((totalOffers / schoolData.totalStudents) * 100).toFixed(2))
+        : 0;
+      
+      // Calculate placement percentage (placed students / total students)
       const placementPercent = schoolData.totalStudents > 0
         ? parseFloat(((placedCount / schoolData.totalStudents) * 100).toFixed(2))
         : 0;
@@ -566,7 +596,9 @@ export const getPlacementBySchool = async (req, res) => {
       return {
         school: school,
         totalStudents: schoolData.totalStudents,
+        totalOffers: totalOffers,
         placedStudents: placedCount,
+        offerPercent: offerPercent,
         placementPercent: placementPercent
       };
     });

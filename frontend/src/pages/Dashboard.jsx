@@ -295,7 +295,13 @@ const Dashboard = () => {
 
       setOverallStats(overallStatsData);
       setSchoolStats(bySchoolResponse.data.data);
-      setSchoolDistribution(schoolsResponse.data.data || []);
+      // Add dummy schools to school distribution
+      const schoolDistributionData = schoolsResponse.data.data || [];
+      const dummySchools = [
+        { name: 'SoL-PG', total: 32 },
+        { name: 'SoCSE-PG', total: 12 }
+      ];
+      setSchoolDistribution([...schoolDistributionData, ...dummySchools]);
       
       // Set CTC distribution data
       const ctcDataArray = Array.isArray(ctcData.distribution) 
@@ -354,10 +360,10 @@ const Dashboard = () => {
     return {
       school: stat.school,
       total: stat.totalStudents,
-      placed: stat.placedStudents,
-      percent: parseFloat(stat.placementPercent?.toFixed(2) || 0)
+      placed: stat.totalOffers || 0, // Use totalOffers for "Total Offers" column
+      percent: parseFloat((stat.offerPercent || 0).toFixed(2)) // Use offerPercent for "Offer %" column
     };
-  }).sort((a, b) => (b.percent || 0) - (a.percent || 0)); // Sort by placement percentage descending
+  }).sort((a, b) => (b.percent || 0) - (a.percent || 0)); // Sort by offer percentage descending
 
   // Check if no schools are selected (show all data)
   const noSchoolsSelected = selectedSchools.length === 0;
