@@ -14,6 +14,7 @@ import Companies from './pages/Companies';
 import Students from './pages/Students';
 import JobOffers from './pages/JobOffers';
 import Events from './pages/Events';
+import Calendar from './pages/Calendar';
 
 function App() {
   return (
@@ -112,6 +113,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Events />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <ProtectedRoute>
+                <Calendar />
               </ProtectedRoute>
             }
           />

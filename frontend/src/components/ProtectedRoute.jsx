@@ -26,7 +26,7 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   if (user?.role === 'admin') {
-    const adminAllowedPaths = ['/dashboard', '/companies', '/placements/companies'];
+    const adminAllowedPaths = ['/dashboard', '/companies', '/placements/companies', '/calendar'];
     const currentPath = location.pathname;
     if (!adminAllowedPaths.includes(currentPath)) {
       return <Navigate to="/dashboard" replace />;
@@ -37,4 +37,3 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 };
 
 export default ProtectedRoute;
-

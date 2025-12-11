@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Heading, Text, VStack, HStack, Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Button, Spinner, Alert, AlertIcon, Input, InputGroup, InputLeftElement, Select, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { FiSearch } from 'react-icons/fi';
+import { FiSearch, FiArrowUp, FiArrowDown } from 'react-icons/fi';
 import AdminLayout from '../components/AdminLayout';
 import api from '../utils/api';
 
@@ -15,6 +15,7 @@ const JobOffers = () => {
   const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState({ usn: '', company_name: '', designation: '', job_type: '', ctc_min_lpa: '', ctc_max_lpa: '', offer_letter_status: '' });
+  const [ctcSort, setCtcSort] = useState('none');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,6 +67,19 @@ const JobOffers = () => {
     const cols = ['usn', 'student_name', 'company_name', 'designation', 'job_type'];
     return list.filter(o => cols.some(c => String(o?.[c] || '').toLowerCase().includes(q)));
   }, [offers, query, companyFilter, jobTypeFilter]);
+
+  const ctcValue = (o) => {
+    const toNum = (v) => {
+      if (v === null || v === undefined) return NaN;
+      const n = parseFloat(String(v).replace(/[^0-9.]/g, ''));
+      return isNaN(n) ? NaN : n;
+    };
+    const min = toNum(o?.ctc_min_lpa);
+    const max = toNum(o?.ctc_max_lpa);
+    if (!isNaN(max)) return max;
+    if (!isNaN(min)) return min;
+    return NaN;
+  };
 
   const formatCTC = (minStr, maxStr) => {
     const toNum = (v) => {
@@ -122,7 +136,6 @@ const JobOffers = () => {
                 ))}
               </Select>
               <Button variant="outline" size="sm" whiteSpace="nowrap" onClick={() => { setCompanyFilter(''); setJobTypeFilter(''); }}>Clear Filters</Button>
-              <Button variant="outline" colorScheme="purple" onClick={() => navigate('/placements/companies')}>Add New Company</Button>
             </HStack>
 
             {loading ? (
@@ -144,16 +157,84 @@ const JobOffers = () => {
                       <Th>Company</Th>
                       <Th>Designation</Th>
                       <Th>Job Type</Th>
-                      <Th>CTC (LPA)</Th>
+                      <Th>
+                        <Button variant="ghost" size="sm" onClick={() => setCtcSort(s => s === 'none' ? 'asc' : s === 'asc' ? 'desc' : 'none')}>
+                          <HStack spacing={2} align="center">
+                            <Text color="#febb31">CTC (LPA)</Text>
+                            <HStack spacing={0} align="center">
+                              <FiArrowUp color={ctcSort === 'asc' ? '#febb31' : '#9fb6c0'} />
+                              <FiArrowDown color={ctcSort === 'desc' ? '#febb31' : '#9fb6c0'} />
+                            </HStack>
+                          </HStack>
+                        </Button>
+                      </Th>
                       <Th>Offer Letter Status</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {[...filtered].sort((a, b) => {
-                      const ay = a.year || 0;
-                      const by = b.year || 0;
-                      return by - ay;
-                    }).map((o, idx) => (
+                    {[...filtered]
+                      .sort((a, b) => {
+                        const q = query.trim().toLowerCase();
+
+                        if (ctcSort !== 'none') {
+                          const va = ctcValue(a);
+                          const vb = ctcValue(b);
+                          const aIsNaN = isNaN(va);
+                          const bIsNaN = isNaN(vb);
+                          if (aIsNaN !== bIsNaN) return aIsNaN ? 1 : -1;
+                          if (!aIsNaN && !bIsNaN && va !== vb) {
+                            return ctcSort === 'asc' ? va - vb : vb - va;
+                          }
+                        }
+
+                        if (!q) {
+                          const ay = a.year || 0;
+                          const by = b.year || 0;
+                          return by - ay;
+                        }
+
+                        const nameA = String(a.student_name || '').toLowerCase();
+                        const nameB = String(b.student_name || '').toLowerCase();
+                        const posNameA = nameA.indexOf(q);
+                        const posNameB = nameB.indexOf(q);
+
+                        if (posNameA !== -1 || posNameB !== -1) {
+                          if (posNameA !== -1 && posNameB === -1) return -1;
+                          if (posNameA === -1 && posNameB !== -1) return 1;
+                          if (posNameA !== posNameB) return posNameA - posNameB;
+                          return nameA.localeCompare(nameB);
+                        }
+
+                        const compA = String(a.company_name || '').toLowerCase();
+                        const compB = String(b.company_name || '').toLowerCase();
+                        const posCompA = compA.indexOf(q);
+                        const posCompB = compB.indexOf(q);
+
+                        if (posCompA !== -1 || posCompB !== -1) {
+                          if (posCompA !== -1 && posCompB === -1) return -1;
+                          if (posCompA === -1 && posCompB !== -1) return 1;
+                          if (posCompA !== posCompB) return posCompA - posCompB;
+                          return compA.localeCompare(compB);
+                        }
+
+                        const otherCols = ['designation', 'job_type', 'usn'];
+                        const bestOtherPos = (row) => {
+                          let best = Infinity;
+                          for (const c of otherCols) {
+                            const val = String(row?.[c] || '').toLowerCase();
+                            const idx = val.indexOf(q);
+                            if (idx !== -1 && idx < best) best = idx;
+                          }
+                          return best;
+                        };
+
+                        const posOtherA = bestOtherPos(a);
+                        const posOtherB = bestOtherPos(b);
+
+                        if (posOtherA !== posOtherB) return posOtherA - posOtherB;
+                        return nameA.localeCompare(nameB);
+                      })
+                      .map((o, idx) => (
                       <Tr key={idx} _hover={{ bg: 'gray.50' }}>
                         <Td><Badge colorScheme="blue">{o.usn || '—'}</Badge></Td>
                         <Td>

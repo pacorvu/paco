@@ -29,6 +29,7 @@ import {
   getStudentDetails
 } from '../controllers/placementDashboardController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
+import { getCalendarEvents, createCalendarEvent, updateCalendarEvent } from '../controllers/calendarController.js';
 
 const router = express.Router();
 
@@ -65,6 +66,11 @@ router.get('/dashboard/placement/by-school', protect, authorize('admin', 'supera
 router.get('/dashboard/placement/company/:companyName', protect, authorize('admin', 'superadmin'), getCompanyDetails);
 router.get('/dashboard/placement/placed-students', protect, authorize('admin', 'superadmin'), getPlacedStudents);
 router.get('/dashboard/placement/student/:usn', protect, authorize('admin', 'superadmin'), getStudentDetails);
+
+// Calendar routes (admin and superadmin)
+router.get('/calendar/events', protect, authorize('admin', 'superadmin'), getCalendarEvents);
+router.post('/calendar/events', protect, authorize('admin', 'superadmin'), createCalendarEvent);
+router.put('/calendar/events/:id', protect, authorize('admin', 'superadmin'), updateCalendarEvent);
 
 // Example route
 router.get('/test', (req, res) => {

@@ -99,7 +99,7 @@ const Events = () => {
               <Input placeholder="Search by company, role, school, year" value={query} onChange={e => setQuery(e.target.value)} />
             </InputGroup>
 
-            <HStack spacing={4}>
+            <HStack spacing={4} flexWrap="wrap" align="center">
               <Select placeholder="Filter by Company" value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} maxW="xs">
                 {companies.map(c => (
                   <option key={c} value={c}>{c}</option>
@@ -121,7 +121,6 @@ const Events = () => {
                 ))}
               </Select>
               <Button variant="outline" size="sm" whiteSpace="nowrap" onClick={() => { setCompanyFilter(''); setYearFilter(''); setSchoolFilter(''); setJobTypeFilter(''); }}>Clear Filters</Button>
-              <Button variant="outline" colorScheme="purple" onClick={() => navigate('/placements/companies')}>Add New Company</Button>
             </HStack>
 
             {loading ? (
@@ -135,7 +134,7 @@ const Events = () => {
               </Alert>
             ) : (
               <TableContainer bg="white" borderRadius="xl" boxShadow="lg" p={2}>
-                <Table size="sm">
+                <Table size="md">
                   <Thead bg="#172e36" sx={{ th: { py: 3, color: '#febb31' }, 'tr:first-of-type th:first-of-type': { borderTopLeftRadius: '10px' }, 'tr:first-of-type th:last-of-type': { borderTopRightRadius: '10px' } }}>
                     <Tr>
                       <Th>Company</Th>
@@ -145,9 +144,9 @@ const Events = () => {
                       <Th>Course</Th>
                       <Th>Job Profile</Th>
                       <Th>Job Type</Th>
-                      <Th>Avg Internship Stipend</Th>
-                      <Th>CTC in LPA</Th>
-                      <Th>Final Selects</Th>
+                      <Th isNumeric>Avg Internship Stipend</Th>
+                      <Th isNumeric>CTC in LPA</Th>
+                      <Th isNumeric>Final Selects</Th>
                       <Th>Company Remarks</Th>
                     </Tr>
                   </Thead>
@@ -165,9 +164,9 @@ const Events = () => {
                         <Td>{p.course || '—'}</Td>
                         <Td>{p.job_profile || '—'}</Td>
                         <Td>{p.job_type || p.type_of_hiring || '—'}</Td>
-                        <Td>{p.avg_internship_stipend ?? '—'}</Td>
-                        <Td>{p.ctc_in_lpa ?? '—'}</Td>
-                        <Td><Badge colorScheme="blue">{p.final_selects ?? '—'}</Badge></Td>
+                        <Td isNumeric>{p.avg_internship_stipend ?? '—'}</Td>
+                        <Td isNumeric>{p.ctc_in_lpa ?? '—'}</Td>
+                        <Td isNumeric><Badge colorScheme="blue">{p.final_selects ?? '—'}</Badge></Td>
                         <Td>{p.company_remarks || '—'}</Td>
                       </Tr>
                     ))}

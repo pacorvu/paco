@@ -49,11 +49,11 @@ const Students = () => {
       list = list.filter(stu => (stu.program || '') === programFilter);
     }
     if (!q) return list;
-    const cols = ['usn', 'student_name', 'school', 'program', 'specialization', 'email_id', 'contact_number'];
+    const cols = ['usn', 'student_name', 'school', 'program', 'specialization', 'contact_number'];
     return list.filter(stu => {
       return cols.some(c => String(stu?.[c] || '').toLowerCase().includes(q));
     });
-  }, [students, query]);
+  }, [students, query, schoolFilter, programFilter]);
 
   return (
     <AdminLayout>
@@ -116,11 +116,45 @@ const Students = () => {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {[...filtered].sort((a, b) => {
-                      const ay = a.year || a.batch_year || a.graduation_year || 0;
-                      const by = b.year || b.batch_year || b.graduation_year || 0;
-                      return (by || 0) - (ay || 0);
-                    }).map((stu, idx) => (
+                    {[...filtered]
+                      .sort((a, b) => {
+                        const q = query.trim().toLowerCase();
+                        const nameA = String(a.student_name || '').toLowerCase();
+                        const nameB = String(b.student_name || '').toLowerCase();
+
+                        if (!q) {
+                          return nameA.localeCompare(nameB);
+                        }
+
+                        const posNameA = nameA.indexOf(q);
+                        const posNameB = nameB.indexOf(q);
+
+                        if (posNameA !== -1 || posNameB !== -1) {
+                          if (posNameA !== -1 && posNameB === -1) return -1;
+                          if (posNameA === -1 && posNameB !== -1) return 1;
+                          if (posNameA !== posNameB) return posNameA - posNameB;
+                          return nameA.localeCompare(nameB);
+                        }
+
+                        const otherCols = ['usn', 'school', 'program', 'specialization', 'contact_number'];
+
+                        const bestOtherPos = (stu) => {
+                          let best = Infinity;
+                          for (const c of otherCols) {
+                            const val = String(stu?.[c] || '').toLowerCase();
+                            const idx = val.indexOf(q);
+                            if (idx !== -1 && idx < best) best = idx;
+                          }
+                          return best;
+                        };
+
+                        const posOtherA = bestOtherPos(a);
+                        const posOtherB = bestOtherPos(b);
+
+                        if (posOtherA !== posOtherB) return posOtherA - posOtherB;
+                        return nameA.localeCompare(nameB);
+                      })
+                      .map((stu, idx) => (
                       <Tr key={idx} _hover={{ bg: 'gray.50' }} cursor="pointer" onClick={() => navigate(`/placements/student/${encodeURIComponent(stu.usn)}`)}>
                         <Td>{idx + 1}</Td>
                         <Td>

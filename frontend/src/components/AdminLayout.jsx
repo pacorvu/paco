@@ -18,7 +18,8 @@ import {
   ViewIcon, 
   ArrowForwardIcon,
   AddIcon,
-  SettingsIcon
+  SettingsIcon,
+  CalendarIcon
 } from '@chakra-ui/icons';
 import { useAuth } from '../context/AuthContext';
 
@@ -40,9 +41,10 @@ const AdminLayout = ({ children }) => {
     { path: '/dashboard', label: 'Placement Details', icon: ViewIcon },
     { path: '/students', label: 'View All Students', icon: ViewIcon },
     { path: '/job-offers', label: 'Job Offers', icon: ViewIcon },
-    { path: '/events', label: 'Events', icon: ViewIcon }
+    { path: '/events', label: 'Events', icon: ViewIcon },
+    { path: '/calendar', label: 'Calendar', icon: CalendarIcon }
   ];
-  const visibleNavItems = isSuperAdmin ? navItems : navItems.filter(item => item.path === '/dashboard');
+  const visibleNavItems = isSuperAdmin ? navItems : navItems.filter(item => ['/dashboard','/calendar'].includes(item.path));
 
   const isActive = (path) => location.pathname === path;
 
