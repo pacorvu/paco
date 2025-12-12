@@ -109,3 +109,24 @@ export const updateCalendarEvent = async (req, res) => {
   }
 };
 
+export const deleteCalendarEvent = async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const id = req.params.id;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Event ID is required' });
+    }
+
+    const { error } = await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error deleting calendar event:', error);
+    return res.status(500).json({ success: false, message: 'Error deleting calendar event', error: error.message });
+  }
+};

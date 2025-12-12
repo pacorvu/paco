@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Box, Heading, Text, VStack, HStack, Button, IconButton, Grid, GridItem, Badge, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput, Select, Divider, Switch, InputGroup, ButtonGroup, Image } from '@chakra-ui/react';
 
-import { FiChevronLeft, FiChevronRight, FiPlus } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiPlus, FiTrash } from 'react-icons/fi';
 import AdminLayout from '../components/AdminLayout';
 import api from '../utils/api';
 
@@ -155,6 +155,8 @@ const Calendar = () => {
     if (meridiem === 'AM' && hour12 === 12) h = 0;
     return `${String(h).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
   };
+  const dateColors = ['pink','blue','purple','orange','teal','cyan','red','yellow'];
+  const getDateColorName = (d) => dateColors[(d.getDate() - 1) % dateColors.length];
   const now = new Date();
   const nowHour12 = ((now.getHours() + 11) % 12) + 1;
   const nowMinute = String(now.getMinutes()).padStart(2, '0');
@@ -228,6 +230,15 @@ const Calendar = () => {
     }
   };
 
+  const deleteEvent = async (id) => {
+    try {
+      await api.delete(`/calendar/events/${encodeURIComponent(id)}`);
+      await fetchEvents();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete event');
+    }
+  };
+
   const dayEvents = (d) => {
     const iso = formatDate(d);
     return monthEvents.filter(e => String(e.event_date).slice(0, 10) === iso);
@@ -275,17 +286,19 @@ const Calendar = () => {
                         const isSelected = d.toDateString() === selectedDate.toDateString();
                         const isSunday = d.getDay() === 0;
                         const isToday = new Date().toDateString() === d.toDateString();
+                        const colorName = getDateColorName(d);
+                        const hasEvents = evs.length > 0;
                         return (
                           <GridItem key={idx} cursor="pointer" onClick={() => handleDayClick(d)} borderRight="1px solid" borderBottom="1px solid" borderColor="gray.200">
-                            <Box position="relative" p={4} bg={isSelected ? 'green.50' : evs.length > 0 ? 'green.50' : 'white'} opacity={inMonth ? 1 : 0.5} _hover={{ bg: 'gray.50' }} display="flex" flexDir="column" alignItems="center" justifyContent="center" height="100%" w="100%" border={isSelected || evs.length > 0 ? '2px solid' : 'none'} borderColor={isSelected ? 'green.500' : evs.length > 0 ? 'green.300' : 'transparent'} borderRadius="md" boxShadow={isSelected ? '0 0 0 2px rgba(56, 161, 105, 0.35)' : evs.length > 0 ? '0 0 0 2px rgba(154, 230, 180, 0.35)' : 'none'}>
-                              <Text fontWeight="bold" fontSize="xl" textAlign="center" color={isSunday ? 'red.500' : 'gray.800'}>{d.getDate()}</Text>
+                            <Box position="relative" p={4} bg={hasEvents ? `${colorName}.50` : 'white'} opacity={inMonth ? 1 : 0.5} _hover={{ bg: hasEvents ? `${colorName}.100` : 'gray.50' }} display="flex" flexDir="column" alignItems="center" justifyContent="center" height="100%" w="100%" border={isSelected || hasEvents ? '2px solid' : 'none'} borderColor={isSelected ? 'green.500' : hasEvents ? `${colorName}.300` : 'transparent'} borderRadius="md" boxShadow={isSelected ? '0 0 0 2px rgba(56, 161, 105, 0.35)' : 'none'}>
+                              <Text fontWeight="bold" fontSize="xl" textAlign="center" color={isSelected ? 'green.600' : (isSunday ? 'red.500' : 'gray.800')}>{d.getDate()}</Text>
                               {isToday && (
                                 <Box position="absolute" top={2} right={2} w="2" h="2" borderRadius="full" bg="green.500" />
                               )}
-                              {evs.length > 0 && (
-                                <HStack spacing={1} position="absolute" bottom={2} left={3}>
-                                  {Array.from({ length: Math.min(evs.length, 5) }).map((_, i) => (
-                                    <Box key={i} w="2" h="2" borderRadius="full" bg="green.500" />
+                              {hasEvents && (
+                                <HStack spacing={1} position="absolute" bottom={2} left="50%" transform="translateX(-50%)">
+                                  {evs.map((e, i) => (
+                                    <Box key={e.id || i} boxSize="6px" borderRadius="full" bg={`${dateColors[i % dateColors.length]}.500`} />
                                   ))}
                                 </HStack>
                               )}
@@ -353,25 +366,37 @@ const Calendar = () => {
                         {dayEvents(selectedDate).filter(e => !e.start_time && !e.end_time).length === 0 ? (
                           <Text color="gray.500">No tasks</Text>
                         ) : (
-                          dayEvents(selectedDate).filter(e => !e.start_time && !e.end_time).map(e => (
-                            <Box key={e.id} p={3} borderRadius="md" bg="yellow.50" border="1px solid" borderColor="yellow.200">
-                              <Text fontSize="sm" fontWeight="semibold" color="yellow.800">{e.title}</Text>
-                              {e.notification_remarks && (<Text fontSize="xs" color="yellow.700">{e.notification_remarks}</Text>)}
-                            </Box>
-                          ))
+                          dayEvents(selectedDate).filter(e => !e.start_time && !e.end_time).map(e => {
+                            const colorName = getDateColorName(selectedDate);
+                            return (
+                              <HStack key={e.id} p={3} borderRadius="md" bg={`${colorName}.50`} border="1px solid" borderColor={`${colorName}.200`} justifyContent="space-between" alignItems="center">
+                                <VStack align="start" spacing={0}>
+                                  <Text fontSize="sm" fontWeight="semibold" color={`${colorName}.800`}>{e.title}</Text>
+                                  {e.notification_remarks && (<Text fontSize="xs" color={`${colorName}.700`}>{e.notification_remarks}</Text>)}
+                                </VStack>
+                                <IconButton aria-label="Delete" icon={<FiTrash />} size="sm" colorScheme="red" variant="ghost" onClick={() => deleteEvent(e.id)} />
+                              </HStack>
+                            );
+                          })
                         )}
 
                         <Heading as="h3" fontSize="md" color="gray.700">Scheduled Events</Heading>
                         {dayEvents(selectedDate).filter(e => e.start_time || e.end_time).length === 0 ? (
                           <Text color="gray.500">No scheduled events</Text>
                         ) : (
-                          dayEvents(selectedDate).filter(e => e.start_time || e.end_time).map(e => (
-                            <Box key={e.id} p={3} borderRadius="md" bg="green.50" border="1px solid" borderColor="green.200">
-                              <Text fontSize="sm" fontWeight="semibold" color="green.800">{e.title}</Text>
-                              <Text fontSize="xs" color="green.700">{e.start_time || ''}</Text>
-                              {e.notification_remarks && (<Text fontSize="xs" color="green.700">{e.notification_remarks}</Text>)}
-                            </Box>
-                          ))
+                          dayEvents(selectedDate).filter(e => e.start_time || e.end_time).map(e => {
+                            const colorName = getDateColorName(selectedDate);
+                            return (
+                              <HStack key={e.id} p={3} borderRadius="md" bg={`${colorName}.50`} border="1px solid" borderColor={`${colorName}.200`} justifyContent="space-between" alignItems="center">
+                                <VStack align="start" spacing={0}>
+                                  <Text fontSize="sm" fontWeight="semibold" color={`${colorName}.800`}>{e.title}</Text>
+                                  <Text fontSize="xs" color={`${colorName}.700`}>{e.start_time || ''}</Text>
+                                  {e.notification_remarks && (<Text fontSize="xs" color={`${colorName}.700`}>{e.notification_remarks}</Text>)}
+                                </VStack>
+                                <IconButton aria-label="Delete" icon={<FiTrash />} size="sm" colorScheme="red" variant="ghost" onClick={() => deleteEvent(e.id)} />
+                              </HStack>
+                            );
+                          })
                         )}
                       </VStack>
                       <HStack mt={4} spacing={3}>
