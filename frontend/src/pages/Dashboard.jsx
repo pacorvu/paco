@@ -900,7 +900,12 @@ const Dashboard = () => {
                       </Text>{' '}
                       Unique Companies)
                     </Heading>
-                    <Button size="sm" variant="outline" onClick={() => { console.log('[Dashboard] Navigating to All Companies'); navigate('/placements/companies'); }}>View All</Button>
+                    <Button size="sm" variant="outline" onClick={() => {
+                      const hasSchoolFilter = isSuperAdmin && selectedSchools.length > 0;
+                      const queryParam = hasSchoolFilter ? `?school=${encodeURIComponent(selectedSchools.join(','))}` : '';
+                      console.log('[Dashboard] Navigating to All Companies', { selectedSchools, queryParam });
+                      navigate(`/placements/companies${queryParam}`);
+                    }}>View All</Button>
                   </HStack>
 
                   {/* Logo Loop Container */}

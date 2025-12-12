@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Heading, Text, VStack, HStack, Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Button, Spinner, Alert, AlertIcon, Input, InputGroup, InputLeftElement, Select, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { FiSearch, FiArrowUp, FiArrowDown } from 'react-icons/fi';
@@ -7,6 +7,7 @@ import api from '../utils/api';
 
 const JobOffers = () => {
   const [offers, setOffers] = useState([]);
+  const [studentsList, setStudentsList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -14,8 +15,16 @@ const JobOffers = () => {
   const [jobTypeFilter, setJobTypeFilter] = useState('');
   const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [form, setForm] = useState({ usn: '', company_name: '', designation: '', job_type: '', ctc_min_lpa: '', ctc_max_lpa: '', offer_letter_status: '' });
+  const [form, setForm] = useState({ company_name: '', designation: '', job_type: '', ctc_min_lpa: '', ctc_max_lpa: '', offer_letter_status: '' });
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [studentQuery, setStudentQuery] = useState('');
+  const [studentOpen, setStudentOpen] = useState(false);
+  const [selectedUSNs, setSelectedUSNs] = useState([]);
   const [ctcSort, setCtcSort] = useState('none');
+  const cancelRef = useRef(null);
+  const studentBoxRef = useRef(null);
+  const companyBoxRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -37,6 +46,7 @@ const JobOffers = () => {
           year: stu.year || stu.batch_year || stu.graduation_year
         })));
         setOffers(flatOffers);
+        setStudentsList(students);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load job offers');
       } finally {
@@ -50,9 +60,50 @@ const JobOffers = () => {
     return Array.from(new Set((offers || []).map(o => o.company_name).filter(Boolean))).sort();
   }, [offers]);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (studentOpen && studentBoxRef.current && !studentBoxRef.current.contains(e.target)) {
+        setStudentOpen(false);
+      }
+      if (companyOpen && companyBoxRef.current && !companyBoxRef.current.contains(e.target)) {
+        setCompanyOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [studentOpen, companyOpen]);
+
   const jobTypes = useMemo(() => {
-    return Array.from(new Set((offers || []).map(o => o.job_type).filter(Boolean))).sort();
+    const map = new Map();
+    (offers || []).forEach(o => {
+      const raw = (o.job_type || '').trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!map.has(key)) {
+        const display = raw
+          .split(' ')
+          .map(s => (s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : s))
+          .join(' ');
+        map.set(key, display);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
   }, [offers]);
+
+  const filteredStudents = useMemo(() => {
+    const q = studentQuery.trim().toLowerCase();
+    const base = studentsList || [];
+    if (!q) return base;
+    return base.filter(stu => {
+      return [stu.student_name, stu.usn, stu.school, stu.program].some(v => String(v || '').toLowerCase().includes(q));
+    });
+  }, [studentsList, studentQuery]);
+
+  const filteredCompanies = useMemo(() => {
+    const q = companyQuery.trim().toLowerCase();
+    if (!q) return companies;
+    return companies.filter(c => c.toLowerCase().includes(q));
+  }, [companies, companyQuery]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -258,27 +309,84 @@ const JobOffers = () => {
               </TableContainer>
             )}
 
-            <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)}>
+            <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} size="xl" initialFocusRef={cancelRef}>
               <ModalOverlay />
-              <ModalContent>
+              <ModalContent maxW="4xl">
                 <ModalHeader>Add Job Offer</ModalHeader>
                 <ModalBody>
                   <VStack spacing={4} align="stretch">
                     <FormControl isRequired>
-                      <FormLabel>Student USN</FormLabel>
-                      <CInput value={form.usn} onChange={e => setForm({ ...form, usn: e.target.value })} />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Search Company</FormLabel>
-                      <CInput placeholder="Type to filter companies" value={form.companySearch || ''} onChange={e => setForm({ ...form, companySearch: e.target.value })} />
+                      <FormLabel>Students</FormLabel>
+                      <Box position="relative" ref={studentBoxRef}>
+                        <HStack spacing={2} wrap="wrap" mb={2}>
+                          {selectedUSNs.map(usn => (
+                            <HStack key={usn} spacing={1} p={1} borderRadius="md" border="1px solid" borderColor="gray.200" bg="gray.50">
+                              <Badge colorScheme="blue">{usn}</Badge>
+                              <Button size="xs" variant="ghost" onClick={() => setSelectedUSNs(prev => prev.filter(u => u !== usn))}>Remove</Button>
+                            </HStack>
+                          ))}
+                        </HStack>
+                        <CInput
+                          placeholder="Type name, USN, school or program"
+                          value={studentQuery}
+                          onChange={e => { setStudentQuery(e.target.value); setStudentOpen(true); }}
+                          onFocus={() => setStudentOpen(true)}
+                          onBlur={() => setStudentOpen(false)}
+                        />
+                        {studentOpen && (
+                          <Box position="absolute" zIndex={10} bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" mt={1} maxH="360px" overflowY="auto" w="100%">
+                            {(filteredStudents || []).map(stu => (
+                              <Box
+                                key={stu.usn}
+                                px={3}
+                                py={3}
+                                _hover={{ bg: 'gray.100' }}
+                                cursor="pointer"
+                                onMouseDown={() => {
+                                  setSelectedUSNs(prev => prev.includes(stu.usn) ? prev : [...prev, stu.usn]);
+                                  setStudentQuery('');
+                                  setStudentOpen(false);
+                                }}
+                              >
+                                <HStack spacing={3}>
+                                  <Text fontWeight="semibold">{stu.student_name}</Text>
+                                  <Badge colorScheme="blue">{stu.usn}</Badge>
+                                  <Text color="gray.600">{stu.school || '—'}</Text>
+                                  <Text color="gray.600">{stu.program || '—'}</Text>
+                                </HStack>
+                              </Box>
+                            ))}
+                          </Box>
+                        )}
+                      </Box>
                     </FormControl>
                     <FormControl isRequired>
                       <FormLabel>Company</FormLabel>
-                      <Select placeholder="Select Company" value={form.company_name} onChange={e => setForm({ ...form, company_name: e.target.value })}>
-                        {companies.filter(c => !form.companySearch || c.toLowerCase().includes(form.companySearch.toLowerCase())).map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </Select>
+                      <Box position="relative" ref={companyBoxRef}>
+                        <CInput
+                          placeholder="Search or type company"
+                          value={companyQuery}
+                          onChange={e => { setCompanyQuery(e.target.value); setCompanyOpen(true); }}
+                          onFocus={() => setCompanyOpen(true)}
+                          onBlur={() => setCompanyOpen(false)}
+                        />
+                        {companyOpen && (
+                          <Box position="absolute" zIndex={10} bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" mt={1} maxH="360px" overflowY="auto" w="100%">
+                            {(filteredCompanies || []).map(c => (
+                              <Box
+                                key={c}
+                                px={3}
+                                py={3}
+                                _hover={{ bg: 'gray.100' }}
+                                cursor="pointer"
+                                onMouseDown={() => { setForm({ ...form, company_name: c }); setCompanyQuery(c); setCompanyOpen(false); }}
+                              >
+                                <Text>{c}</Text>
+                              </Box>
+                            ))}
+                          </Box>
+                        )}
+                      </Box>
                     </FormControl>
                     <FormControl>
                       <FormLabel>Designation</FormLabel>
@@ -310,10 +418,28 @@ const JobOffers = () => {
                 </ModalBody>
                 <ModalFooter>
                   <HStack spacing={3}>
-                    <Button variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                    <Button ref={cancelRef} variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                     <Button colorScheme="green" onClick={async () => {
                       try {
-                        await api.post('/dashboard/placement/job-offers', form);
+                        const usnList = selectedUSNs;
+                        if (usnList.length === 0) {
+                          alert('Select at least one student');
+                          return;
+                        }
+                        const companyValue = form.company_name || companyQuery;
+                        if (!companyValue) {
+                          alert('Select a company');
+                          return;
+                        }
+                        const payloadBase = {
+                          company_name: companyValue,
+                          designation: form.designation,
+                          job_type: form.job_type,
+                          ctc_min_lpa: form.ctc_min_lpa,
+                          ctc_max_lpa: form.ctc_max_lpa,
+                          offer_letter_status: form.offer_letter_status
+                        };
+                        await Promise.all(usnList.map(usn => api.post('/dashboard/placement/job-offers', { ...payloadBase, usn })));
                         setIsAddOpen(false);
                         const res = await api.get('/dashboard/placement/placed-students');
                         const students = res.data?.data || [];
@@ -328,6 +454,10 @@ const JobOffers = () => {
                           offer_letter_status: o.offer_letter_status
                         })));
                         setOffers(flatOffers);
+                        setStudentsList(students);
+                        setSelectedUSNs([]);
+                        setCompanyQuery('');
+                        setForm({ company_name: '', designation: '', job_type: '', ctc_min_lpa: '', ctc_max_lpa: '', offer_letter_status: '' });
                       } catch (err) {
                         alert(err.response?.data?.message || 'Failed to add job offer');
                       }

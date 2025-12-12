@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Heading, Text, VStack, HStack, SimpleGrid, Image, Badge, Input, InputGroup, InputLeftElement, Spinner, Alert, AlertIcon, Button, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput } from '@chakra-ui/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FiSearch } from 'react-icons/fi';
 import AdminLayout from '../components/AdminLayout';
 import api from '../utils/api';
@@ -74,14 +74,43 @@ const Companies = () => {
   const [form, setForm] = useState({ company_name: '', description: '', company_type: '', website: '', linkedin: '', company_logo_link: '' });
   const navigate = useNavigate();
   const { isSuperAdmin } = useAuth();
+  const [schools, setSchools] = useState([]);
+  const [selectedSchools, setSelectedSchools] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
 
+  // Initialize selected schools from query param
+  useEffect(() => {
+    const schoolParam = searchParams.get('school');
+    if (schoolParam && isSuperAdmin) {
+      const parsed = schoolParam.split(',').map(s => decodeURIComponent(s)).filter(Boolean);
+      setSelectedSchools(parsed);
+    }
+  }, [searchParams, isSuperAdmin]);
+
+  // Fetch schools for filtering UI
+  useEffect(() => {
+    const fetchSchools = async () => {
+      try {
+        const res = await api.get('/dashboard/placement/schools');
+        const names = (res.data?.data || []).map(s => s.name).filter(Boolean);
+        setSchools(names);
+      } catch {
+        // Non-blocking: ignore school list errors in companies page
+      }
+    };
+    fetchSchools();
+  }, []);
+
+  // Fetch companies, honoring school filter for superadmin
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError('');
-        console.log('[Companies] Fetching companies...');
-        const res = await api.get('/dashboard/placement/companies');
+        const hasSchoolFilter = isSuperAdmin && selectedSchools.length > 0;
+        const queryParam = hasSchoolFilter ? `?school=${encodeURIComponent(selectedSchools.join(','))}` : '';
+        console.log('[Companies] Fetching companies...', { schools: selectedSchools, queryParam });
+        const res = await api.get(`/dashboard/placement/companies${queryParam}`);
         const list = res.data?.data?.companies || [];
         console.log('[Companies] Loaded companies:', list.length, list.slice(0, 5));
         setCompanies(list);
@@ -94,9 +123,11 @@ const Companies = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [isSuperAdmin, selectedSchools]);
 
-  const filtered = companies.filter(name => name?.toLowerCase().includes(query.toLowerCase()));
+  const filtered = useMemo(() => {
+    return companies.filter(name => name?.toLowerCase().includes(query.toLowerCase()));
+  }, [companies, query]);
 
   return (
     <AdminLayout>
@@ -124,6 +155,57 @@ const Companies = () => {
               </InputLeftElement>
               <Input placeholder="Search companies" value={query} onChange={e => setQuery(e.target.value)} />
             </InputGroup>
+
+            {isSuperAdmin && (
+              <>
+                <HStack justify="space-between" align="center">
+                  <Text fontSize="sm" color="gray.600">Filter by School</Text>
+                  <Button variant="outline" size="sm" onClick={() => { setSelectedSchools([]); setSearchParams({}); }}>Clear School Filter</Button>
+                </HStack>
+                <SimpleGrid columns={{ base: 2, sm: 4, lg: 8 }} spacing={4} mb={2}>
+                  {schools.length > 0 ? (
+                    schools.map((school) => {
+                      const isSelected = selectedSchools.includes(school);
+                      return (
+                        <Box
+                          key={school}
+                          as="button"
+                          onClick={() => {
+                            setSelectedSchools(prev => {
+                              const next = prev.includes(school) ? prev.filter(s => s !== school) : [...prev, school];
+                              if (next.length > 0) {
+                                setSearchParams({ school: next.join(',') });
+                              } else {
+                                setSearchParams({});
+                              }
+                              return next;
+                            });
+                          }}
+                          bg={isSelected ? '#172e36' : 'gray.50'}
+                          p={3}
+                          borderRadius="xl"
+                          boxShadow={isSelected ? 'lg' : 'md'}
+                          textAlign="center"
+                          border={isSelected ? '2px solid' : '1px solid'}
+                          borderColor={isSelected ? '#d1a85d' : 'gray.200'}
+                          _hover={{ transform: 'scale(1.03)', boxShadow: 'xl' }}
+                          transition="all 0.2s"
+                        >
+                          <Text fontSize="sm" fontWeight="semibold" color={isSelected ? 'white' : 'gray.700'}>
+                            {school}
+                          </Text>
+                        </Box>
+                      );
+                    })
+                  ) : (
+                    <Text color="gray.500" textAlign="center" gridColumn="1 / -1">No schools available</Text>
+                  )}
+                </SimpleGrid>
+                {selectedSchools.length > 0 && (
+                  <Text fontSize="sm" color="blue.600" fontWeight="medium">{selectedSchools.length} school{selectedSchools.length > 1 ? 's' : ''} selected</Text>
+                )}
+              </>
+            )}
 
             {loading ? (
               <Box bg="white" borderRadius="xl" p={8} boxShadow="lg" textAlign="center">

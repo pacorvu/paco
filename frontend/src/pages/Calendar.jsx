@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Box, Heading, Text, VStack, HStack, Button, IconButton, Grid, GridItem, Badge, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput, Select, Divider } from '@chakra-ui/react';
- 
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { Box, Heading, Text, VStack, HStack, Button, IconButton, Grid, GridItem, Badge, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput, Select, Divider, Switch, InputGroup, ButtonGroup, Image } from '@chakra-ui/react';
+
 import { FiChevronLeft, FiChevronRight, FiPlus } from 'react-icons/fi';
 import AdminLayout from '../components/AdminLayout';
 import api from '../utils/api';
@@ -18,6 +18,35 @@ const Calendar = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [form, setForm] = useState({ title: '', description: '', date: '', start_time: '', end_time: '', notification_remarks: '', isPlacement: false, placement_company_name: '', placement_year: '' });
+  const [startHour, setStartHour] = useState('');
+  const [startMinute, setStartMinute] = useState('');
+  const [startMeridiem, setStartMeridiem] = useState('AM');
+  const [startTimeError, setStartTimeError] = useState('');
+  const [linkPlacement, setLinkPlacement] = useState(false);
+  const [placementModalOpen, setPlacementModalOpen] = useState(false);
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [companyPlacements, setCompanyPlacements] = useState([]);
+  const [placementCompanySearch, setPlacementCompanySearch] = useState('');
+  const [placementCompanyName, setPlacementCompanyName] = useState('');
+  const [newCompany, setNewCompany] = useState({ company_name: '', description: '', company_type: '', website: '', linkedin: '', company_logo_link: '' });
+  const [placementSelection, setPlacementSelection] = useState('');
+  const [isNewPlacement, setIsNewPlacement] = useState(false);
+  const [placementItemSearch, setPlacementItemSearch] = useState('');
+  const [pendingPlacementCompanyName, setPendingPlacementCompanyName] = useState('');
+  const [pendingPlacementYear, setPendingPlacementYear] = useState('');
+  const [pendingPlacementId, setPendingPlacementId] = useState(null);
+  const [placementForm, setPlacementForm] = useState({ year: '', tpo: '', school: '', course: '', job_profile: '', job_type: '', avg_internship_stipend: '', ctc_in_lpa: '', final_selects: '', company_remarks: '' });
+  const [companyMode, setCompanyMode] = useState('');
+  const [placementMode, setPlacementMode] = useState('');
+  const [linkStep, setLinkStep] = useState(1);
+  const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
+  const [placementDropdownOpen, setPlacementDropdownOpen] = useState(false);
+  const companySearchInputRef = useRef(null);
+  const placementSearchInputRef = useRef(null);
+  const companyBoxRef = useRef(null);
+  const placementBoxRef = useRef(null);
+  const modalFocusRef = useRef(null);
+  const [companyLogoFailed, setCompanyLogoFailed] = useState(false);
 
   
 
@@ -47,6 +76,34 @@ const Calendar = () => {
     });
   }, [events, current]);
 
+  const getCompanyLogoFilename = (companyName) => {
+    if (!companyName) return '';
+    const normalized = String(companyName).trim().toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').replace(/-*\d+$/, '');
+    return normalized + '.png';
+  };
+  const getCompanyLogoPath = (companyName) => {
+    const filename = getCompanyLogoFilename(companyName);
+    return `/company_logos/${filename}`;
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      const t = e.target;
+      const inCompany = companyBoxRef.current && companyBoxRef.current.contains(t);
+      const inPlacement = placementBoxRef.current && placementBoxRef.current.contains(t);
+      if (!inCompany) {
+        setCompanyDropdownOpen(false);
+        if (companySearchInputRef.current) companySearchInputRef.current.blur();
+      }
+      if (!inPlacement) {
+        setPlacementDropdownOpen(false);
+        if (placementSearchInputRef.current) placementSearchInputRef.current.blur();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
 
   const fetchCompanies = async () => {
     try {
@@ -61,8 +118,8 @@ const Calendar = () => {
     try {
       setLoading(true);
       setError('');
-      const startStr = range.start.toISOString().slice(0, 10);
-      const endStr = range.end.toISOString().slice(0, 10);
+      const startStr = formatDate(range.start);
+      const endStr = formatDate(range.end);
       const res = await api.get(`/calendar/events?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`);
       setEvents(res.data?.data || []);
     } catch (err) {
@@ -80,37 +137,99 @@ const Calendar = () => {
     fetchEvents();
   }, [fetchEvents]);
 
+  const formatDate = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const formatDMY = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${day}-${m}-${y}`;
+  };
+  const to24h = (hour12, minute, meridiem) => {
+    let h = hour12 % 12;
+    if (meridiem === 'PM') h += 12;
+    if (meridiem === 'AM' && hour12 === 12) h = 0;
+    return `${String(h).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+  };
+  const now = new Date();
+  const nowHour12 = ((now.getHours() + 11) % 12) + 1;
+  const nowMinute = String(now.getMinutes()).padStart(2, '0');
+  const validateStart = (hStr, mStr) => {
+    const h = hStr === '' ? NaN : parseInt(hStr, 10);
+    const m = mStr === '' ? NaN : parseInt(mStr, 10);
+    if (hStr !== '' && (isNaN(h) || h < 1 || h > 12)) {
+      setStartTimeError('Hour must be 1-12');
+      return false;
+    }
+    if (mStr !== '' && (isNaN(m) || m < 0 || m > 59)) {
+      setStartTimeError('Minute must be 00–59');
+      return false;
+    }
+    setStartTimeError('');
+    return hStr !== '' && mStr !== '';
+  };
+  const loadCompanyPlacements = async (name) => {
+    try {
+      const res = await api.get(`/dashboard/placement/company/${encodeURIComponent(name)}`);
+      const data = res.data?.data || {};
+      setCompanyPlacements(data.placements || []);
+    } catch {
+      setCompanyPlacements([]);
+    }
+  };
+
   const openAddForDate = (d) => {
     setSelectedDate(d);
-    const iso = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+    const iso = formatDate(d);
     setForm({ title: '', description: '', date: iso, start_time: '', end_time: '', notification_remarks: '', isPlacement: false, placement_company_name: '', placement_year: '' });
     setIsAddOpen(true);
   };
 
+  const handleDayClick = (d) => {
+    setSelectedDate(d);
+    if (isAddOpen) {
+      setForm(prev => ({ ...prev, date: formatDate(d) }));
+    }
+  };
+
   const saveEvent = async () => {
     try {
+      const startValid = validateStart(startHour, startMinute);
+      const startStr = startValid ? to24h(parseInt(startHour,10), parseInt(startMinute,10), startMeridiem) : null;
+      const companyName = pendingPlacementCompanyName || null;
+      const placementId = pendingPlacementId || null;
       const payload = {
         title: form.title,
         description: form.description,
         event_date: form.date,
-        start_time: form.start_time || null,
-        end_time: form.end_time || null,
-        is_all_day: !form.start_time && !form.end_time,
+        start_time: startStr,
+        end_time: null,
+        is_all_day: !startStr,
         status: 'scheduled',
         notification_remarks: form.notification_remarks || null,
-        placement_company_name: form.isPlacement ? form.placement_company_name || null : null,
-        placement_year: form.isPlacement ? (form.placement_year ? parseInt(form.placement_year, 10) : null) : null
+        placement_company_name: linkPlacement ? (companyName || null) : null,
+        placement_year: linkPlacement ? (pendingPlacementYear ? parseInt(pendingPlacementYear, 10) : null) : null,
+        placement_id: linkPlacement ? placementId : null
       };
       await api.post('/calendar/events', payload);
       setIsAddOpen(false);
       await fetchEvents();
+      const parts = String(form.date).split('-');
+      const y = parseInt(parts[0] || '0', 10);
+      const m = parseInt(parts[1] || '1', 10) - 1;
+      const day = parseInt(parts[2] || '1', 10);
+      setSelectedDate(new Date(y, m, day));
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to save event');
     }
   };
 
   const dayEvents = (d) => {
-    const iso = d.toISOString().slice(0, 10);
+    const iso = formatDate(d);
     return monthEvents.filter(e => String(e.event_date).slice(0, 10) === iso);
   };
 
@@ -157,8 +276,8 @@ const Calendar = () => {
                         const isSunday = d.getDay() === 0;
                         const isToday = new Date().toDateString() === d.toDateString();
                         return (
-                          <GridItem key={idx} cursor="pointer" onClick={() => setSelectedDate(d)} borderRight="1px solid" borderBottom="1px solid" borderColor="gray.200">
-                            <Box position="relative" p={4} bg={isSelected ? 'green.50' : 'white'} opacity={inMonth ? 1 : 0.5} _hover={{ bg: 'gray.50' }} display="flex" flexDir="column" alignItems="center" justifyContent="center" height="100%" w="100%" border={isSelected ? '2px solid' : 'none'} borderColor={isSelected ? 'green.500' : 'transparent'} borderRadius="md" boxShadow={isSelected ? '0 0 0 2px rgba(56, 161, 105, 0.35)' : 'none'}>
+                          <GridItem key={idx} cursor="pointer" onClick={() => handleDayClick(d)} borderRight="1px solid" borderBottom="1px solid" borderColor="gray.200">
+                            <Box position="relative" p={4} bg={isSelected ? 'green.50' : evs.length > 0 ? 'green.50' : 'white'} opacity={inMonth ? 1 : 0.5} _hover={{ bg: 'gray.50' }} display="flex" flexDir="column" alignItems="center" justifyContent="center" height="100%" w="100%" border={isSelected || evs.length > 0 ? '2px solid' : 'none'} borderColor={isSelected ? 'green.500' : evs.length > 0 ? 'green.300' : 'transparent'} borderRadius="md" boxShadow={isSelected ? '0 0 0 2px rgba(56, 161, 105, 0.35)' : evs.length > 0 ? '0 0 0 2px rgba(154, 230, 180, 0.35)' : 'none'}>
                               <Text fontWeight="bold" fontSize="xl" textAlign="center" color={isSunday ? 'red.500' : 'gray.800'}>{d.getDate()}</Text>
                               {isToday && (
                                 <Box position="absolute" top={2} right={2} w="2" h="2" borderRadius="full" bg="green.500" />
@@ -179,7 +298,7 @@ const Calendar = () => {
                 </Box>
                 <Box w={{ base: '100%', lg: 'sm' }} bg="white" borderRadius="xl" p={5} boxShadow="lg" height="100%" overflowY="auto">
                   <Heading as="h2" fontSize="lg" fontWeight="bold" color="gray.700" mb={3}>
-                    {selectedDate.toLocaleString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    {formatDMY(selectedDate)}
                   </Heading>
                   <Divider mb={3} />
                   {isAddOpen ? (
@@ -189,20 +308,30 @@ const Calendar = () => {
                         <FormLabel>Title</FormLabel>
                         <CInput value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
                       </FormControl>
-                      <HStack spacing={3}>
+                      <VStack spacing={3} align="stretch">
                         <FormControl isRequired>
                           <FormLabel>Date</FormLabel>
                           <CInput value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
                         </FormControl>
+                        <HStack spacing={3}>
+                          <FormControl flex="1">
+                            <FormLabel>Start Time</FormLabel>
+                            <InputGroup size="sm">
+                              <CInput w="70px" type="number" inputMode="numeric" min={1} max={12} placeholder={String(nowHour12)} value={startHour} onChange={e => { const v = e.target.value.replace(/[^0-9]/g,''); setStartHour(v); const ok = validateStart(v, startMinute); if (ok) setForm({ ...form, start_time: to24h(parseInt(v||'0',10), parseInt(startMinute||'0',10), startMeridiem) }); }} />
+                              <CInput w="70px" type="number" inputMode="numeric" min={0} max={59} placeholder={nowMinute} value={startMinute} onChange={e => { const v = e.target.value.replace(/[^0-9]/g,''); setStartMinute(v); const ok = validateStart(startHour, v); if (ok) setForm({ ...form, start_time: to24h(parseInt(startHour||'0',10), parseInt(v||'0',10), startMeridiem) }); }} />
+                              <ButtonGroup isAttached size="sm">
+                                <Button variant={startMeridiem==='AM' ? 'solid' : 'outline'} colorScheme="green" onClick={() => { setStartMeridiem('AM'); const ok = validateStart(startHour, startMinute); if (ok) setForm({ ...form, start_time: to24h(parseInt(startHour||'0',10), parseInt(startMinute||'0',10), 'AM') }); }}>AM</Button>
+                                <Button variant={startMeridiem==='PM' ? 'solid' : 'outline'} colorScheme="green" onClick={() => { setStartMeridiem('PM'); const ok = validateStart(startHour, startMinute); if (ok) setForm({ ...form, start_time: to24h(parseInt(startHour||'0',10), parseInt(startMinute||'0',10), 'PM') }); }}>PM</Button>
+                              </ButtonGroup>
+                            </InputGroup>
+                            {startTimeError && (<Text fontSize="xs" color="red.500" mt={1}>{startTimeError}</Text>)}
+                          </FormControl>
+                        </HStack>
                         <FormControl>
-                          <FormLabel>Start Time</FormLabel>
-                          <CInput value={form.start_time} onChange={e => setForm({ ...form, start_time: e.target.value })} placeholder="HH:MM" />
+                          <FormLabel>Link Placement</FormLabel>
+                          <Switch isChecked={linkPlacement} onChange={e => { const v = e.target.checked; setLinkPlacement(v); if (v) { setCompanyMode('new'); setPlacementMode('new'); setLinkStep(1); setPlacementModalOpen(true); } }} />
                         </FormControl>
-                        <FormControl>
-                          <FormLabel>End Time</FormLabel>
-                          <CInput value={form.end_time} onChange={e => setForm({ ...form, end_time: e.target.value })} placeholder="HH:MM" />
-                        </FormControl>
-                      </HStack>
+                      </VStack>
                       <FormControl>
                         <FormLabel>Description</FormLabel>
                         <CInput value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
@@ -211,28 +340,7 @@ const Calendar = () => {
                         <FormLabel>Notification Remarks</FormLabel>
                         <CInput value={form.notification_remarks} onChange={e => setForm({ ...form, notification_remarks: e.target.value })} />
                       </FormControl>
-                      <FormControl>
-                        <FormLabel>Link Placement Event</FormLabel>
-                        <Select value={form.isPlacement ? (form.placement_company_name || '') : ''} onChange={e => {
-                          const val = e.target.value;
-                          if (!val) {
-                            setForm({ ...form, isPlacement: false, placement_company_name: '', placement_year: '' });
-                          } else {
-                            setForm({ ...form, isPlacement: true, placement_company_name: val });
-                          }
-                        }}>
-                          <option value="">None</option>
-                          {companies.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </Select>
-                      </FormControl>
-                      {form.isPlacement && (
-                        <FormControl>
-                          <FormLabel>Placement Year</FormLabel>
-                          <CInput value={form.placement_year} onChange={e => setForm({ ...form, placement_year: e.target.value })} />
-                        </FormControl>
-                      )}
+                      
                       <HStack mt={2} spacing={3}>
                         <Button variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                         <Button colorScheme="green" onClick={saveEvent}>Save</Button>
@@ -260,7 +368,7 @@ const Calendar = () => {
                           dayEvents(selectedDate).filter(e => e.start_time || e.end_time).map(e => (
                             <Box key={e.id} p={3} borderRadius="md" bg="green.50" border="1px solid" borderColor="green.200">
                               <Text fontSize="sm" fontWeight="semibold" color="green.800">{e.title}</Text>
-                              <Text fontSize="xs" color="green.700">{e.start_time || ''}{e.end_time ? ` - ${e.end_time}` : ''}</Text>
+                              <Text fontSize="xs" color="green.700">{e.start_time || ''}</Text>
                               {e.notification_remarks && (<Text fontSize="xs" color="green.700">{e.notification_remarks}</Text>)}
                             </Box>
                           ))
@@ -279,6 +387,219 @@ const Calendar = () => {
           </VStack>
         </Box>
       </Box>
+      <Modal isOpen={placementModalOpen} onClose={() => { setPlacementModalOpen(false); setPlacementCompanyName(''); setCompanyPlacements([]); setPlacementSelection(''); setIsNewPlacement(false); setPlacementItemSearch(''); setPlacementCompanySearch(''); setLinkPlacement(false); setCompanyMode(''); setPlacementMode(''); setCompanyDropdownOpen(false); setPlacementDropdownOpen(false); setLinkStep(1); }} isCentered initialFocusRef={modalFocusRef}>
+        <ModalOverlay />
+        <ModalContent maxW="800px">
+          <ModalHeader>
+            <HStack justifyContent="space-between">
+              <Heading as="h3" size="md">Link Placement</Heading>
+              <Box ref={modalFocusRef} tabIndex={-1} />
+            </HStack>
+          </ModalHeader>
+          <ModalBody>
+            {linkStep === 1 ? (
+            <VStack spacing={6} align="stretch">
+              <Box>
+                <HStack spacing={4} align="center">
+                  <Heading as="h4" size="sm">Company</Heading>
+                  {placementCompanyName && !companyLogoFailed && (
+                    <Image src={getCompanyLogoPath(placementCompanyName)} alt={placementCompanyName} boxSize="96px" objectFit="contain" onError={() => setCompanyLogoFailed(true)} />
+                  )}
+                </HStack>
+                <HStack mt={3} spacing={3}>
+                  <Button variant={companyMode==='new' ? 'solid' : 'outline'} colorScheme="green" onClick={() => { setCompanyMode('new'); }}>
+                    Add New Company
+                  </Button>
+                  <Button variant={companyMode==='existing' ? 'solid' : 'outline'} colorScheme="green" onClick={() => { setCompanyMode('existing'); }}>
+                    Use Existing Company
+                  </Button>
+                </HStack>
+                {companyMode === 'existing' && (
+                  <Box ref={companyBoxRef} position="relative" mt={3}>
+                    <CInput ref={companySearchInputRef} placeholder="Search or select company" value={placementCompanySearch} onChange={e => { setPlacementCompanySearch(e.target.value); }} onFocus={() => setCompanyDropdownOpen(true)} />
+                    {companyDropdownOpen && (
+                      <Box position="absolute" zIndex={20} bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" mt={1} w="full" maxH="220px" overflowY="auto" boxShadow="md">
+                        {companies.filter(c => !placementCompanySearch || c.toLowerCase().includes(placementCompanySearch.toLowerCase())).map(c => (
+                          <Box key={c} px={3} py={2} _hover={{ bg: 'gray.50' }} cursor="pointer" onClick={async () => { setPlacementCompanyName(c); setPlacementCompanySearch(c); setCompanyDropdownOpen(false); setCompanyLogoFailed(false); await loadCompanyPlacements(c); setPlacementMode(''); setPlacementSelection(''); }}>
+                            {c}
+                          </Box>
+                        ))}
+                        {companies.length === 0 && (
+                          <Box px={3} py={2} color="gray.500">No companies</Box>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+                {companyMode === 'new' && (
+                  <VStack spacing={3} align="stretch" mt={3}>
+                    <FormControl><FormLabel>Company Name</FormLabel><CInput value={newCompany.company_name} onChange={e => setNewCompany({ ...newCompany, company_name: e.target.value })} /></FormControl>
+                    <FormControl><FormLabel>Description</FormLabel><CInput value={newCompany.description} onChange={e => setNewCompany({ ...newCompany, description: e.target.value })} /></FormControl>
+                    <HStack spacing={3}>
+                      <FormControl><FormLabel>Type</FormLabel><CInput value={newCompany.company_type} onChange={e => setNewCompany({ ...newCompany, company_type: e.target.value })} /></FormControl>
+                      <FormControl><FormLabel>Website</FormLabel><CInput value={newCompany.website} onChange={e => setNewCompany({ ...newCompany, website: e.target.value })} /></FormControl>
+                    </HStack>
+                    <HStack spacing={3}>
+                      <FormControl><FormLabel>LinkedIn</FormLabel><CInput value={newCompany.linkedin} onChange={e => setNewCompany({ ...newCompany, linkedin: e.target.value })} /></FormControl>
+                      <FormControl><FormLabel>Logo Link</FormLabel><CInput value={newCompany.company_logo_link} onChange={e => setNewCompany({ ...newCompany, company_logo_link: e.target.value })} /></FormControl>
+                    </HStack>
+                  </VStack>
+                )}
+              </Box>
+            </VStack>
+            ) : (
+            <VStack spacing={6} align="stretch">
+              <Box>
+                <HStack spacing={4} align="center">
+                  <Heading as="h4" size="sm">Placement</Heading>
+                </HStack>
+                <HStack mt={3} spacing={3}>
+                  <Button variant={placementMode==='existing' ? 'solid' : 'outline'} colorScheme="green" onClick={() => setPlacementMode('existing')} isDisabled={!placementCompanyName && companyMode!=='new'}>
+                    Use Existing Placements
+                  </Button>
+                  <Button variant={placementMode==='new' ? 'solid' : 'outline'} colorScheme="green" onClick={() => setPlacementMode('new')} isDisabled={!placementCompanyName && companyMode!=='new'}>
+                    Add New Placements
+                  </Button>
+                </HStack>
+                {placementMode === 'existing' && (
+                  <Box ref={placementBoxRef} position="relative" mt={3}>
+                    <CInput ref={placementSearchInputRef} placeholder="Search or select placement" value={placementItemSearch} onChange={e => setPlacementItemSearch(e.target.value)} onFocus={() => setPlacementDropdownOpen(true)} />
+                    {placementDropdownOpen && (
+                      <Box position="absolute" zIndex={20} bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" mt={1} w="full" maxH="220px" overflowY="auto" boxShadow="md">
+                        {companyPlacements.filter(p => {
+                          const q = (placementItemSearch || '').toLowerCase();
+                          const s = `${p.year || ''} ${p.job_profile || ''} ${p.school || ''}`.toLowerCase();
+                          return !q || s.includes(q);
+                        }).map(p => (
+                          <Box key={p.id} px={3} py={2} _hover={{ bg: 'gray.50' }} cursor="pointer" onClick={() => { setPlacementSelection(p.id); setPlacementItemSearch(`${p.year} • ${p.job_profile || 'Role'} • ${p.school || ''}`); setPlacementDropdownOpen(false); }}>
+                            {p.year} • {p.job_profile || 'Role'} • {p.school || ''}
+                          </Box>
+                        ))}
+                        {companyPlacements.length === 0 && (
+                          <Box px={3} py={2} color="gray.500">No placements</Box>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+                {placementMode === 'new' && (
+                  <VStack spacing={2} align="stretch" mt={3}>
+                    <HStack spacing={3}>
+                      <FormControl><FormLabel>Year</FormLabel><CInput value={placementForm.year} onChange={e => setPlacementForm({ ...placementForm, year: e.target.value })} /></FormControl>
+                      <FormControl><FormLabel>TPO</FormLabel><CInput value={placementForm.tpo} onChange={e => setPlacementForm({ ...placementForm, tpo: e.target.value })} /></FormControl>
+                    </HStack>
+                    <HStack spacing={3}>
+                      <FormControl><FormLabel>School</FormLabel><CInput value={placementForm.school} onChange={e => setPlacementForm({ ...placementForm, school: e.target.value })} /></FormControl>
+                      <FormControl><FormLabel>Course</FormLabel><CInput value={placementForm.course} onChange={e => setPlacementForm({ ...placementForm, course: e.target.value })} /></FormControl>
+                    </HStack>
+                    <FormControl><FormLabel>Job Profile</FormLabel><CInput value={placementForm.job_profile} onChange={e => setPlacementForm({ ...placementForm, job_profile: e.target.value })} /></FormControl>
+                    <FormControl><FormLabel>Job Type</FormLabel><CInput value={placementForm.job_type} onChange={e => setPlacementForm({ ...placementForm, job_type: e.target.value })} /></FormControl>
+                    <HStack spacing={3}>
+                      <FormControl><FormLabel>Avg Internship Stipend</FormLabel><CInput value={placementForm.avg_internship_stipend} onChange={e => setPlacementForm({ ...placementForm, avg_internship_stipend: e.target.value })} /></FormControl>
+                      <FormControl><FormLabel>CTC in LPA</FormLabel><CInput value={placementForm.ctc_in_lpa} onChange={e => setPlacementForm({ ...placementForm, ctc_in_lpa: e.target.value })} /></FormControl>
+                    </HStack>
+                    <HStack spacing={3}>
+                      <FormControl><FormLabel>Final Selects</FormLabel><CInput value={placementForm.final_selects} onChange={e => setPlacementForm({ ...placementForm, final_selects: e.target.value })} /></FormControl>
+                      <FormControl><FormLabel>Remarks</FormLabel><CInput value={placementForm.company_remarks} onChange={e => setPlacementForm({ ...placementForm, company_remarks: e.target.value })} /></FormControl>
+                    </HStack>
+                  </VStack>
+                )}
+              </Box>
+            </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <HStack spacing={3}>
+              <Button variant="ghost" onClick={() => { setPlacementModalOpen(false); setPlacementCompanyName(''); setCompanyPlacements([]); setPlacementSelection(''); setIsNewPlacement(false); setPlacementItemSearch(''); setPlacementCompanySearch(''); setLinkPlacement(false); setCompanyMode(''); setPlacementMode(''); setCompanyDropdownOpen(false); setPlacementDropdownOpen(false); }}>Close</Button>
+              {linkStep === 1 && (
+                <Button colorScheme="green" onClick={async () => {
+                  if (companyMode === 'new' && newCompany.company_name) {
+                    setPlacementCompanyName(newCompany.company_name);
+                    setCompanyLogoFailed(false);
+                    setCompanyDropdownOpen(false);
+                  }
+                  if (companyMode === 'existing' && placementCompanyName) {
+                    await loadCompanyPlacements(placementCompanyName);
+                  }
+                  if (!placementMode) { setPlacementMode('new'); }
+                  setLinkStep(2);
+                }} isDisabled={(companyMode==='existing' && !placementCompanyName) || (companyMode==='new' && !newCompany.company_name)}>
+                  Next
+                </Button>
+              )}
+              {linkStep === 2 && (
+              <Button colorScheme="green" onClick={async () => {
+                let companyName = placementCompanyName;
+                if (companyMode === 'new' && newCompany.company_name) {
+                  await api.post('/dashboard/placement/company', newCompany);
+                  const companiesRes = await api.get('/dashboard/placement/companies');
+                  const companyNames = companiesRes.data?.data?.companies || [];
+                  setCompanies(companyNames);
+                  companyName = newCompany.company_name;
+                  setPlacementCompanyName(companyName);
+                  setCompanyLogoFailed(false);
+                  await loadCompanyPlacements(companyName);
+                }
+                if (placementMode === 'new') {
+                  const resp = await api.post('/dashboard/placement/placements', { ...placementForm, company_name: companyName });
+                  const newId = resp.data?.data?.id || null;
+                  setPendingPlacementCompanyName(companyName);
+                  setPendingPlacementYear(placementForm.year || '');
+                  setPendingPlacementId(newId);
+                  setLinkPlacement(!!newId);
+                } else if (placementMode === 'existing') {
+                  const sel = placementSelection || null;
+                  const picked = companyPlacements.find(p => String(p.id) === String(sel));
+                  setPendingPlacementCompanyName(companyName || picked?.company_name || '');
+                  setPendingPlacementYear(picked?.year || '');
+                  setPendingPlacementId(sel);
+                  setLinkPlacement(!!sel);
+                } else {
+                  setPendingPlacementCompanyName(companyName || '');
+                  setPendingPlacementYear('');
+                  setPendingPlacementId(null);
+                  setLinkPlacement(false);
+                }
+                setPlacementModalOpen(false);
+              }} isDisabled={(placementMode==='existing' && !placementSelection) || (placementMode==='new' && (!placementForm.year || !placementForm.job_profile))}>Save</Button>
+              )}
+              {linkStep === 2 && (
+                <Button variant="outline" onClick={() => setLinkStep(1)}>Back</Button>
+              )}
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={companyModalOpen} onClose={() => setCompanyModalOpen(false)}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Add New Company</ModalHeader>
+          <ModalBody>
+            <VStack spacing={3} align="stretch">
+              <CInput placeholder="Company Name" value={newCompany.company_name} onChange={e => setNewCompany({ ...newCompany, company_name: e.target.value })} />
+              <CInput placeholder="Description" value={newCompany.description} onChange={e => setNewCompany({ ...newCompany, description: e.target.value })} />
+              <CInput placeholder="Company Type" value={newCompany.company_type} onChange={e => setNewCompany({ ...newCompany, company_type: e.target.value })} />
+              <CInput placeholder="Website" value={newCompany.website} onChange={e => setNewCompany({ ...newCompany, website: e.target.value })} />
+              <CInput placeholder="LinkedIn" value={newCompany.linkedin} onChange={e => setNewCompany({ ...newCompany, linkedin: e.target.value })} />
+              <CInput placeholder="Logo Link" value={newCompany.company_logo_link} onChange={e => setNewCompany({ ...newCompany, company_logo_link: e.target.value })} />
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack spacing={3}>
+              <Button variant="ghost" onClick={() => setCompanyModalOpen(false)}>Close</Button>
+              <Button colorScheme="purple" onClick={async () => {
+                await api.post('/dashboard/placement/company', newCompany);
+                const companiesRes = await api.get('/dashboard/placement/companies');
+                const companyNames = companiesRes.data?.data?.companies || [];
+                setCompanies(companyNames);
+                setPlacementCompanyName(newCompany.company_name);
+                await loadCompanyPlacements(newCompany.company_name);
+                setCompanyModalOpen(false);
+              }}>Save</Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </AdminLayout>
   );
 };
