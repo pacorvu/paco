@@ -31,10 +31,13 @@ const JobOffers = () => {
       try {
         setLoading(true);
         setError('');
-        // Build offers client-side from placed students data
-        const res = await api.get('/dashboard/placement/placed-students');
-        const students = res.data?.data || [];
-        const flatOffers = students.flatMap(stu => (stu.offers || []).map(o => ({
+        const [allStudentsRes, placedRes] = await Promise.all([
+          api.get('/dashboard/students'),
+          api.get('/dashboard/placement/placed-students')
+        ]);
+        const allStudents = allStudentsRes.data?.data || [];
+        const placedStudents = placedRes.data?.data || [];
+        const flatOffers = placedStudents.flatMap(stu => (stu.offers || []).map(o => ({
           usn: stu.usn,
           student_name: stu.student_name,
           company_name: o.company_name,
@@ -46,7 +49,7 @@ const JobOffers = () => {
           year: stu.year || stu.batch_year || stu.graduation_year
         })));
         setOffers(flatOffers);
-        setStudentsList(students);
+        setStudentsList(allStudents);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load job offers');
       } finally {
@@ -441,9 +444,12 @@ const JobOffers = () => {
                         };
                         await Promise.all(usnList.map(usn => api.post('/dashboard/placement/job-offers', { ...payloadBase, usn })));
                         setIsAddOpen(false);
-                        const res = await api.get('/dashboard/placement/placed-students');
-                        const students = res.data?.data || [];
-                        const flatOffers = students.flatMap(stu => (stu.offers || []).map(o => ({
+                        const [allStudentsRes, placedRes] = await Promise.all([
+                          api.get('/dashboard/students'),
+                          api.get('/dashboard/placement/placed-students')
+                        ]);
+                        const placedStudents = placedRes.data?.data || [];
+                        const flatOffers = placedStudents.flatMap(stu => (stu.offers || []).map(o => ({
                           usn: stu.usn,
                           student_name: stu.student_name,
                           company_name: o.company_name,
@@ -454,7 +460,7 @@ const JobOffers = () => {
                           offer_letter_status: o.offer_letter_status
                         })));
                         setOffers(flatOffers);
-                        setStudentsList(students);
+                        setStudentsList(allStudentsRes.data?.data || []);
                         setSelectedUSNs([]);
                         setCompanyQuery('');
                         setForm({ company_name: '', designation: '', job_type: '', ctc_min_lpa: '', ctc_max_lpa: '', offer_letter_status: '' });
