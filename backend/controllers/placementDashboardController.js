@@ -932,3 +932,77 @@ export const getAllStudents = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching students', error: error.message });
   }
 };
+
+export const createJobOffer = async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const {
+      usn,
+      company_name,
+      job_type,
+      internship_duration,
+      internship_stipend,
+      ctc_min_lpa,
+      ctc_max_lpa,
+      ctc_variable_pay,
+      designation,
+      final_interview_status,
+      offer_letter_status,
+      remarks
+    } = req.body || {};
+
+    if (!usn) {
+      return res.status(400).json({ success: false, message: 'usn is required' });
+    }
+
+    const { data: studentRow, error: studentErr } = await supabase
+      .from('students')
+      .select('usn')
+      .eq('usn', usn)
+      .maybeSingle();
+    if (studentErr) throw studentErr;
+    if (!studentRow) {
+      return res.status(400).json({ success: false, message: 'Student not found' });
+    }
+
+    if (company_name) {
+      const { data: companyRow, error: companyErr } = await supabase
+        .from('companies')
+        .select('company_name')
+        .eq('company_name', company_name)
+        .maybeSingle();
+      if (companyErr) throw companyErr;
+      if (!companyRow) {
+        return res.status(400).json({ success: false, message: 'Company not found' });
+      }
+    }
+
+    const insertPayload = {
+      usn,
+      company_name: company_name || null,
+      job_type: job_type || null,
+      internship_duration: internship_duration || null,
+      internship_stipend: internship_stipend || null,
+      ctc_min_lpa: ctc_min_lpa || null,
+      ctc_max_lpa: ctc_max_lpa || null,
+      ctc_variable_pay: ctc_variable_pay || null,
+      designation: designation || null,
+      final_interview_status: final_interview_status || null,
+      offer_letter_status: offer_letter_status || null,
+      remarks: remarks || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from('job_offers')
+      .insert([insertPayload])
+      .select('*')
+      .maybeSingle();
+    if (insertErr) throw insertErr;
+
+    return res.status(201).json({ success: true, data: inserted });
+  } catch (error) {
+    console.error('Error creating job offer:', error);
+    res.status(500).json({ success: false, message: 'Error creating job offer', error: error.message });
+  }
+};

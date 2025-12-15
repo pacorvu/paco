@@ -15,9 +15,22 @@ const JobOffers = () => {
   const [jobTypeFilter, setJobTypeFilter] = useState('');
   const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [form, setForm] = useState({ company_name: '', designation: '', job_type: '', ctc_min_lpa: '', ctc_max_lpa: '', offer_letter_status: '' });
+  const [form, setForm] = useState({
+    company_name: '',
+    designation: '',
+    job_type: '',
+    internship_duration: '',
+    internship_stipend: '',
+    ctc_min_lpa: '',
+    ctc_max_lpa: '',
+    ctc_variable_pay: '',
+    final_interview_status: '',
+    offer_letter_status: '',
+    remarks: ''
+  });
   const [companyQuery, setCompanyQuery] = useState('');
   const [companyOpen, setCompanyOpen] = useState(false);
+  const [allCompanies, setAllCompanies] = useState([]);
   const [studentQuery, setStudentQuery] = useState('');
   const [studentOpen, setStudentOpen] = useState(false);
   const [selectedUSNs, setSelectedUSNs] = useState([]);
@@ -31,12 +44,14 @@ const JobOffers = () => {
       try {
         setLoading(true);
         setError('');
-        const [allStudentsRes, placedRes] = await Promise.all([
+        const [allStudentsRes, placedRes, companiesRes] = await Promise.all([
           api.get('/dashboard/students'),
-          api.get('/dashboard/placement/placed-students')
+          api.get('/dashboard/placement/placed-students'),
+          api.get('/dashboard/placement/companies')
         ]);
         const allStudents = allStudentsRes.data?.data || [];
         const placedStudents = placedRes.data?.data || [];
+        const allCompaniesList = companiesRes.data?.data?.companies || [];
         const flatOffers = placedStudents.flatMap(stu => (stu.offers || []).map(o => ({
           usn: stu.usn,
           student_name: stu.student_name,
@@ -50,6 +65,7 @@ const JobOffers = () => {
         })));
         setOffers(flatOffers);
         setStudentsList(allStudents);
+        setAllCompanies(allCompaniesList);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load job offers');
       } finally {
@@ -104,9 +120,9 @@ const JobOffers = () => {
 
   const filteredCompanies = useMemo(() => {
     const q = companyQuery.trim().toLowerCase();
-    if (!q) return companies;
-    return companies.filter(c => c.toLowerCase().includes(q));
-  }, [companies, companyQuery]);
+    if (!q) return allCompanies;
+    return (allCompanies || []).filter(c => String(c || '').toLowerCase().includes(q));
+  }, [allCompanies, companyQuery]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -405,6 +421,16 @@ const JobOffers = () => {
                     </FormControl>
                     <HStack spacing={3}>
                       <FormControl>
+                        <FormLabel>Internship Duration</FormLabel>
+                        <CInput value={form.internship_duration} onChange={e => setForm({ ...form, internship_duration: e.target.value })} />
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel>Internship Stipend</FormLabel>
+                        <CInput value={form.internship_stipend} onChange={e => setForm({ ...form, internship_stipend: e.target.value })} />
+                      </FormControl>
+                    </HStack>
+                    <HStack spacing={3}>
+                      <FormControl>
                         <FormLabel>CTC Min (LPA)</FormLabel>
                         <CInput value={form.ctc_min_lpa} onChange={e => setForm({ ...form, ctc_min_lpa: e.target.value })} />
                       </FormControl>
@@ -414,8 +440,20 @@ const JobOffers = () => {
                       </FormControl>
                     </HStack>
                     <FormControl>
+                      <FormLabel>CTC Variable Pay</FormLabel>
+                      <CInput value={form.ctc_variable_pay} onChange={e => setForm({ ...form, ctc_variable_pay: e.target.value })} />
+                    </FormControl>
+                    <FormControl>
                       <FormLabel>Offer Letter Status</FormLabel>
                       <CInput value={form.offer_letter_status} onChange={e => setForm({ ...form, offer_letter_status: e.target.value })} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Final Interview Status</FormLabel>
+                      <CInput value={form.final_interview_status} onChange={e => setForm({ ...form, final_interview_status: e.target.value })} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Remarks</FormLabel>
+                      <CInput value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })} />
                     </FormControl>
                   </VStack>
                 </ModalBody>
@@ -438,15 +476,22 @@ const JobOffers = () => {
                           company_name: companyValue,
                           designation: form.designation,
                           job_type: form.job_type,
+                          internship_duration: form.internship_duration,
+                          internship_stipend: form.internship_stipend,
                           ctc_min_lpa: form.ctc_min_lpa,
                           ctc_max_lpa: form.ctc_max_lpa,
+                          ctc_variable_pay: form.ctc_variable_pay,
+                          final_interview_status: form.final_interview_status,
                           offer_letter_status: form.offer_letter_status
+                          ,
+                          remarks: form.remarks
                         };
                         await Promise.all(usnList.map(usn => api.post('/dashboard/placement/job-offers', { ...payloadBase, usn })));
                         setIsAddOpen(false);
-                        const [allStudentsRes, placedRes] = await Promise.all([
+                        const [allStudentsRes, placedRes, companiesRes] = await Promise.all([
                           api.get('/dashboard/students'),
-                          api.get('/dashboard/placement/placed-students')
+                          api.get('/dashboard/placement/placed-students'),
+                          api.get('/dashboard/placement/companies')
                         ]);
                         const placedStudents = placedRes.data?.data || [];
                         const flatOffers = placedStudents.flatMap(stu => (stu.offers || []).map(o => ({
@@ -461,9 +506,22 @@ const JobOffers = () => {
                         })));
                         setOffers(flatOffers);
                         setStudentsList(allStudentsRes.data?.data || []);
+                        setAllCompanies(companiesRes.data?.data?.companies || []);
                         setSelectedUSNs([]);
                         setCompanyQuery('');
-                        setForm({ company_name: '', designation: '', job_type: '', ctc_min_lpa: '', ctc_max_lpa: '', offer_letter_status: '' });
+                        setForm({
+                          company_name: '',
+                          designation: '',
+                          job_type: '',
+                          internship_duration: '',
+                          internship_stipend: '',
+                          ctc_min_lpa: '',
+                          ctc_max_lpa: '',
+                          ctc_variable_pay: '',
+                          final_interview_status: '',
+                          offer_letter_status: '',
+                          remarks: ''
+                        });
                       } catch (err) {
                         alert(err.response?.data?.message || 'Failed to add job offer');
                       }

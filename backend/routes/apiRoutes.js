@@ -27,7 +27,8 @@ import {
   getCompanyDetails,
   getPlacedStudents,
   getStudentDetails,
-  getAllStudents
+  getAllStudents,
+  createJobOffer
 } from '../controllers/placementDashboardController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../controllers/calendarController.js';
@@ -68,6 +69,7 @@ router.get('/dashboard/placement/company/:companyName', protect, authorize('admi
 router.get('/dashboard/placement/placed-students', protect, authorize('admin', 'superadmin'), getPlacedStudents);
 router.get('/dashboard/placement/student/:usn', protect, authorize('admin', 'superadmin'), getStudentDetails);
 router.get('/dashboard/students', protect, authorize('admin', 'superadmin'), getAllStudents);
+router.post('/dashboard/placement/job-offers', protect, authorize('admin', 'superadmin'), createJobOffer);
 
 // Calendar routes (admin and superadmin)
 router.get('/calendar/events', protect, authorize('admin', 'superadmin'), getCalendarEvents);
