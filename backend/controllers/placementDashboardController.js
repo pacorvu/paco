@@ -902,3 +902,33 @@ export const getStudentDetails = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching student details', error: error.message });
   }
 };
+
+export const getAllStudents = async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { school } = req.query;
+    const isSuperAdmin = req.user?.role === 'superadmin';
+    const schoolFilter = isSuperAdmin ? school : null;
+    const schoolUSNs = await getSchoolUSNs(supabase, schoolFilter);
+
+    if (schoolUSNs !== null && schoolUSNs.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    let studentsQuery = supabase
+      .from('students')
+      .select('usn, student_name, email_id, contact_number, school, program, specialization, gender');
+
+    if (schoolUSNs !== null && schoolUSNs.length > 0) {
+      studentsQuery = studentsQuery.in('usn', schoolUSNs);
+    }
+
+    const { data: studentsData, error: studentsErr } = await studentsQuery;
+    if (studentsErr) throw studentsErr;
+
+    res.status(200).json({ success: true, data: studentsData || [] });
+  } catch (error) {
+    console.error('Error fetching all students:', error);
+    res.status(500).json({ success: false, message: 'Error fetching students', error: error.message });
+  }
+};

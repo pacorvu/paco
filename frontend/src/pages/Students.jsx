@@ -19,8 +19,7 @@ const Students = () => {
       try {
         setLoading(true);
         setError('');
-        // Fallback to placed students list until full students endpoint is available
-        const res = await api.get('/dashboard/placement/placed-students');
+        const res = await api.get('/dashboard/students');
         setStudents(res.data?.data || []);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load students');
