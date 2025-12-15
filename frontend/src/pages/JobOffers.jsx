@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Heading, Text, VStack, HStack, Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Button, Spinner, Alert, AlertIcon, Input, InputGroup, InputLeftElement, Select, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, HStack, Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Button, Spinner, Alert, AlertIcon, Input, InputGroup, InputLeftElement, Select, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, Input as CInput, SimpleGrid, useColorModeValue } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { FiSearch, FiArrowUp, FiArrowDown } from 'react-icons/fi';
 import AdminLayout from '../components/AdminLayout';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const JobOffers = () => {
   const [offers, setOffers] = useState([]);
@@ -38,20 +39,28 @@ const JobOffers = () => {
   const cancelRef = useRef(null);
   const studentBoxRef = useRef(null);
   const companyBoxRef = useRef(null);
+  const [schools, setSchools] = useState([]);
+  const [selectedSchools, setSelectedSchools] = useState([]);
+  const { isSuperAdmin } = useAuth();
+  const cardBg = useColorModeValue('white', 'gray.800');
 
   useEffect(() => {
-    const fetchData = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
         setError('');
-        const [allStudentsRes, placedRes, companiesRes] = await Promise.all([
+        const hasFilter = isSuperAdmin && selectedSchools.length > 0;
+        const queryParam = hasFilter ? `?school=${encodeURIComponent(selectedSchools.join(','))}` : '';
+        const [allStudentsRes, placedRes, companiesRes, schoolsRes] = await Promise.all([
           api.get('/dashboard/students'),
-          api.get('/dashboard/placement/placed-students'),
-          api.get('/dashboard/placement/companies')
+          api.get(`/dashboard/placement/placed-students${queryParam}`),
+          api.get(`/dashboard/placement/companies${queryParam}`),
+          api.get('/dashboard/placement/schools')
         ]);
         const allStudents = allStudentsRes.data?.data || [];
         const placedStudents = placedRes.data?.data || [];
         const allCompaniesList = companiesRes.data?.data?.companies || [];
+        const schoolDistribution = schoolsRes.data?.data || [];
         const flatOffers = placedStudents.flatMap(stu => (stu.offers || []).map(o => ({
           usn: stu.usn,
           student_name: stu.student_name,
@@ -66,14 +75,15 @@ const JobOffers = () => {
         setOffers(flatOffers);
         setStudentsList(allStudents);
         setAllCompanies(allCompaniesList);
+        setSchools(schoolDistribution);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load job offers');
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
-  }, []);
+    loadData();
+  }, [isSuperAdmin, selectedSchools]);
 
   const companies = useMemo(() => {
     return Array.from(new Set((offers || []).map(o => o.company_name).filter(Boolean))).sort();
@@ -111,12 +121,15 @@ const JobOffers = () => {
 
   const filteredStudents = useMemo(() => {
     const q = studentQuery.trim().toLowerCase();
-    const base = studentsList || [];
+    let base = studentsList || [];
+    if (isSuperAdmin && selectedSchools.length > 0) {
+      base = base.filter(stu => selectedSchools.includes(stu.school));
+    }
     if (!q) return base;
     return base.filter(stu => {
       return [stu.student_name, stu.usn, stu.school, stu.program].some(v => String(v || '').toLowerCase().includes(q));
     });
-  }, [studentsList, studentQuery]);
+  }, [studentsList, studentQuery, isSuperAdmin, selectedSchools]);
 
   const filteredCompanies = useMemo(() => {
     const q = companyQuery.trim().toLowerCase();
@@ -207,6 +220,46 @@ const JobOffers = () => {
               </Select>
               <Button variant="outline" size="sm" whiteSpace="nowrap" onClick={() => { setCompanyFilter(''); setJobTypeFilter(''); }}>Clear Filters</Button>
             </HStack>
+
+            {isSuperAdmin && (
+              <Box>
+                <HStack justify="space-between" align="center" mb={3}>
+                  <Heading as="h2" fontSize="lg" fontWeight="bold" color="gray.700">
+                    Filter by School
+                  </Heading>
+                  {selectedSchools.length > 0 && (
+                    <Button size="sm" variant="outline" onClick={() => setSelectedSchools([])}>View All Schools</Button>
+                  )}
+                </HStack>
+                <SimpleGrid columns={{ base: 2, sm: 4, lg: 8 }} spacing={4} mb={4}>
+                  {(schools || []).map((school) => {
+                    const isSelected = selectedSchools.includes(school.name);
+                    return (
+                      <Box
+                        key={school.name}
+                        as="button"
+                        onClick={() => setSelectedSchools(prev => prev.includes(school.name) ? prev.filter(s => s !== school.name) : [...prev, school.name])}
+                        bg={isSelected ? '#172e36' : cardBg}
+                        p={3}
+                        borderRadius="xl"
+                        boxShadow={isSelected ? 'lg' : 'md'}
+                        textAlign="center"
+                        border={isSelected ? '2px solid' : 'none'}
+                        borderColor={isSelected ? '#d1a85d' : 'transparent'}
+                        transition="all 0.2s"
+                      >
+                        <Text fontSize="sm" fontWeight="semibold" color={isSelected ? 'white' : 'gray.700'}>
+                          {school.name}
+                        </Text>
+                        <Text fontSize="xl" fontWeight="bold" color={isSelected ? '#d1a85d' : 'blue.600'}>
+                          {school.total || 0}
+                        </Text>
+                      </Box>
+                    );
+                  })}
+                </SimpleGrid>
+              </Box>
+            )}
 
             {loading ? (
               <Box bg="white" borderRadius="xl" p={8} boxShadow="lg" textAlign="center">

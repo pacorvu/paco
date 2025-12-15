@@ -399,6 +399,13 @@ const Dashboard = () => {
     lowestCTC: ctcStats?.lowestCTC ?? overallStats?.lowestCTCLPA ?? 0,
   };
 
+  const placementSeekingTotal = 703;
+  const offersPercent703 = placementSeekingTotal > 0 ? (displayStats.totalOffers / placementSeekingTotal) * 100 : 0;
+  const placedCombinedPercent703 = placementSeekingTotal > 0 ? (displayStats.totalPlacedCombined / placementSeekingTotal) * 100 : 0;
+  const placedPercent703 = placementSeekingTotal > 0 ? (displayStats.totalPlaced / placementSeekingTotal) * 100 : 0;
+  const internshipsPercent703 = placementSeekingTotal > 0 ? (displayStats.totalInternships / placementSeekingTotal) * 100 : 0;
+  const internshipCumFulltimePercent703 = placementSeekingTotal > 0 ? (displayStats.totalInternshipCumFulltime / placementSeekingTotal) * 100 : 0;
+
   // Filter school distribution and placement by selected schools
   const displaySchoolDistribution = showAllData
     ? schoolDistribution
@@ -512,7 +519,7 @@ const Dashboard = () => {
                 <Box>
                   <HStack justify="space-between" align="center" mb={4}>
                     <Heading as="h2" fontSize="xl" fontWeight="bold" color="gray.700">
-                      Student Distribution by School
+                      Total Students School-wise
                     </Heading>
                     {isSuperAdmin && multipleSchoolsSelected && (
                       <Text fontSize="sm" color="blue.600" fontWeight="medium">
@@ -614,7 +621,7 @@ const Dashboard = () => {
                       Total Offers Percentage
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="#d1a85d" mt={1}>
-                      {displayStats.totalOffersPercent.toFixed(2)}%
+                      {offersPercent703.toFixed(2)}%
                     </Text>
                   </Box>
 
@@ -655,7 +662,7 @@ const Dashboard = () => {
                       Total Placed Percentage
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="#d1a85d" mt={1}>
-                      {displayStats.totalPlacedCombinedPercent.toFixed(2)}%
+                      {placedCombinedPercent703.toFixed(2)}%
                     </Text>
                   </Box>
                 </SimpleGrid>
@@ -699,7 +706,7 @@ const Dashboard = () => {
                         {displayStats.totalPlaced}
                       </Text>
                       <Text fontSize="sm" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'green.700' : 'green.600'} mt={2}>
-                        Total Full time %: {displayStats.totalPlacedPercent.toFixed(2)}%
+                        Total Full time %: {placedPercent703.toFixed(2)}%
                       </Text>
                     </Box>
                   </Box>
@@ -741,7 +748,7 @@ const Dashboard = () => {
                         {displayStats.totalInternships}
                       </Text>
                       <Text fontSize="sm" fontWeight="medium" color={isTotalOffersHovered ? 'purple.700' : 'purple.600'} mt={2}>
-                        Total Internships %: {displayStats.totalInternshipsPercent.toFixed(2)}%
+                        Total Internships %: {internshipsPercent703.toFixed(2)}%
                       </Text>
                     </Box>
                   </Box>
@@ -783,7 +790,7 @@ const Dashboard = () => {
                         {displayStats.totalInternshipCumFulltime}
                       </Text>
                       <Text fontSize="sm" fontWeight="medium" color={(isTotalOffersHovered || isTotalPlacedHovered) ? 'orange.700' : 'orange.600'} mt={2}>
-                        Total Internship-cum-Fulltime %: {displayStats.totalInternshipCumFulltimePercent.toFixed(2)}%
+                        Total Internship-cum-Fulltime %: {internshipCumFulltimePercent703.toFixed(2)}%
                       </Text>
                     </Box>
                   </Box>
@@ -1142,13 +1149,16 @@ const Dashboard = () => {
                               Total
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
-                              {displayStats.totalStudents}
+                              <Box textAlign="right">
+                                <Text>{displayStats.totalStudents}</Text>
+                                <Text fontSize="xs" color="gray.600">(opted for placement: {placementSeekingTotal})</Text>
+                              </Box>
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
                               {displayStats.totalOffers}
                             </Td>
                             <Td isNumeric px={6} py={4} fontSize="sm" fontWeight="700">
-                              {displayStats.totalOffersPercent.toFixed(2)}%
+                              {offersPercent703.toFixed(2)}%
                             </Td>
                           </Tr>
                         </Tbody>
