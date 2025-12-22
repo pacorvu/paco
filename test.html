@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binder Style Calendar</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts: Playfair Display for that classic Serif look -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        binder: {
+                            green: '#4C9A2A', // Main header green
+                            dark: '#1e420f',  // Ring shadow/darker green
+                            red: '#e74c3c',   // Sunday text
+                            redBg: '#ffdcdc', // Sunday background
+                            text: '#2c3e50',
+                        }
+                    },
+                    boxShadow: {
+                        'page': '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                        'hole': 'inset 0 2px 4px rgba(0,0,0,0.3)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #a8e063 0%, #56ab2f 100%);
+            min-height: 100vh;
+        }
+
+        /* Binder Rings Effect */
+        .ring-container {
+            display: flex;
+            justify-content: space-around;
+            position: absolute;
+            top: -15px; /* Pull rings up */
+            left: 20px;
+            right: 20px;
+            z-index: 20;
+        }
+        
+        .binder-ring {
+            width: 20px;
+            height: 45px;
+            background: linear-gradient(to right, #2d3748 0%, #4a5568 40%, #2d3748 100%);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        /* The hole punch visualization */
+        .binder-hole {
+            width: 24px;
+            height: 24px;
+            background-color: #3e7e22; /* Slightly darker than header */
+            border-radius: 50%;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.4);
+            margin: 0 auto;
+            margin-bottom: 25px; /* Space between holes */
+        }
+        
+        .modal-animate {
+            animation: fadeIn 0.2s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+
+    <!-- Main Calendar Card - Width increased to max-w-4xl -->
+    <div class="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden mt-8">
+        
+        <!-- Binder Rings (Visual Decoration) -->
+        <div class="ring-container">
+            <!-- 6 Rings as per reference image -->
+            <div class="binder-ring"></div>
+            <div class="binder-ring"></div>
+            <div class="binder-ring"></div>
+            <div class="binder-ring"></div>
+            <div class="binder-ring"></div>
+            <div class="binder-ring"></div>
+        </div>
+
+        <!-- Green Header Section -->
+        <div class="bg-binder-green pt-12 pb-4 px-8 relative">
+            <!-- Holes for the rings -->
+            <div class="absolute top-3 left-0 right-0 flex justify-space-around px-[20px] justify-around">
+                <div class="binder-hole"></div>
+                <div class="binder-hole"></div>
+                <div class="binder-hole"></div>
+                <div class="binder-hole"></div>
+                <div class="binder-hole"></div>
+                <div class="binder-hole"></div>
+            </div>
+
+            <!-- Month / Year / Nav -->
+            <div class="flex justify-between items-end text-white font-serif mt-2">
+                <div class="flex items-center gap-2">
+                    <button onclick="changeMonth(-1)" class="hover:bg-white/20 rounded-full p-1 transition-colors">
+                        <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                    </button>
+                    <h1 class="text-4xl font-bold tracking-wide uppercase" id="currentMonth">AUG</h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-4xl font-bold opacity-90" id="currentYear">2025</span>
+                    <button onclick="changeMonth(1)" class="hover:bg-white/20 rounded-full p-1 transition-colors">
+                        <i data-lucide="chevron-right" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar Grid Body -->
+        <div class="p-6 pb-8 bg-white font-serif">
+            
+            <!-- Weekday Headers - Updated to 2 letters and larger font -->
+            <div class="grid grid-cols-7 mb-0 border-b-2 border-slate-200 pb-2">
+                <div class="text-center font-bold text-2xl text-red-500">SU</div>
+                <div class="text-center font-bold text-2xl text-slate-800">MO</div>
+                <div class="text-center font-bold text-2xl text-slate-800">TU</div>
+                <div class="text-center font-bold text-2xl text-slate-800">WE</div>
+                <div class="text-center font-bold text-2xl text-slate-800">TH</div>
+                <div class="text-center font-bold text-2xl text-slate-800">FR</div>
+                <div class="text-center font-bold text-2xl text-slate-800">SA</div>
+            </div>
+
+            <!-- Days Grid -->
+            <!-- Changed gap and styling handled in JS for box look -->
+            <div id="calendarGrid" class="calendar-grid-container grid grid-cols-7 border-l border-t border-slate-200">
+                <!-- JS Generated -->
+            </div>
+
+            <div class="flex justify-between items-start mt-8">
+                 <!-- Quick Event List (Mini) -->
+                <div id="eventList" class="flex-1 font-sans text-sm text-slate-500 pr-4">
+                    <!-- Events appear here -->
+                </div>
+
+                <!-- Add Event Button -->
+                <button onclick="openModal(new Date())" class="flex items-center gap-2 px-6 py-3 bg-binder-green hover:bg-[#3e7e22] text-white rounded-full font-sans font-medium shadow-lg hover:shadow-xl transition-all transform active:scale-95">
+                    <i data-lucide="plus" class="w-5 h-5"></i>
+                    Add Note
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Simple Modal -->
+    <div id="eventModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm modal-animate overflow-hidden">
+            <div class="bg-binder-green p-4 flex justify-between items-center text-white">
+                <h3 class="font-serif font-bold text-xl">Add Note</h3>
+                <button onclick="closeModal()" class="hover:bg-white/20 rounded-full p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="text-center">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Selected Date</p>
+                    <p id="modalDateDisplay" class="text-2xl font-serif font-bold text-binder-green">Aug 12, 2025</p>
+                </div>
+                <input id="eventTitleInput" type="text" placeholder="Note text..." class="w-full border-b-2 border-slate-200 py-2 text-lg focus:outline-none focus:border-binder-green transition-colors font-serif text-center bg-transparent">
+                <button onclick="saveEvent()" class="w-full bg-binder-green text-white py-3 rounded-xl font-bold shadow-lg hover:bg-[#3e7e22] transition-colors">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+        const shortMonths = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        
+        // Start date changed to 2025
+        let currentDate = new Date(2045, 7, 1); // August 2045
+        let selectedDate = null;
+        let events = [];
+
+        // DOM
+        const calendarGrid = document.getElementById('calendarGrid');
+        const currentMonthEl = document.getElementById('currentMonth');
+        const currentYearEl = document.getElementById('currentYear');
+        const eventModal = document.getElementById('eventModal');
+        const eventTitleInput = document.getElementById('eventTitleInput');
+        const eventListEl = document.getElementById('eventList');
+
+        const daysInMonth = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const firstDayOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+
+        function render() {
+            // Header
+            currentMonthEl.textContent = shortMonths[currentDate.getMonth()];
+            currentYearEl.textContent = currentDate.getFullYear();
+
+            // Grid
+            calendarGrid.innerHTML = '';
+            
+            const totalDays = daysInMonth(currentDate);
+            const firstDay = firstDayOfMonth(currentDate); // 0 = Sunday
+
+            // Padding for empty cells before start of month
+            for(let i = 0; i < firstDay; i++) {
+                const empty = document.createElement('div');
+                // Standard border but no background
+                // Reduced height to h-16
+                empty.className = "h-16 border-r border-b border-slate-200 bg-slate-50/30"; 
+                calendarGrid.appendChild(empty);
+            }
+
+            // Days
+            for(let i = 1; i <= totalDays; i++) {
+                const cell = document.createElement('div');
+                const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
+                const isSunday = dateObj.getDay() === 0;
+
+                // Styling for Box look:
+                // h-16: Reduced height
+                // items-center justify-center: Center everything
+                // text-2xl: Increased font size for dates
+                let classes = "h-16 border-r border-b border-slate-200 p-2 flex flex-col items-center justify-center cursor-pointer transition-colors relative group ";
+                
+                if (isSunday) {
+                    classes += "bg-binder-redBg text-binder-red hover:bg-[#ffcfcf] ";
+                } else {
+                    classes += "bg-white hover:bg-slate-50 text-slate-800 ";
+                }
+
+                cell.className = classes;
+                
+                // Content - Larger font size (text-3xl)
+                cell.innerHTML = `<span class="font-bold text-3xl leading-none">${i}</span>`;
+                
+                // Event dot
+                const dayEvents = events.filter(e => 
+                    e.dateObj.getDate() === i && 
+                    e.dateObj.getMonth() === currentDate.getMonth() && 
+                    e.dateObj.getFullYear() === currentDate.getFullYear()
+                );
+                
+                if(dayEvents.length > 0) {
+                    const dotsContainer = document.createElement('div');
+                    dotsContainer.className = "absolute bottom-1 flex gap-1 justify-center w-full";
+                    
+                    dayEvents.forEach(() => {
+                        const dot = document.createElement('div');
+                        dot.className = "w-1.5 h-1.5 bg-binder-green rounded-full";
+                        dotsContainer.appendChild(dot);
+                    });
+                    cell.appendChild(dotsContainer);
+                }
+
+                cell.onclick = () => openModal(dateObj);
+                calendarGrid.appendChild(cell);
+            }
+            
+            // Fill remaining grid cells to make it square/complete if needed
+            const totalSlots = firstDay + totalDays;
+            const remaining = (7 - (totalSlots % 7)) % 7;
+            for(let i = 0; i < remaining; i++) {
+                 const empty = document.createElement('div');
+                 empty.className = "h-16 border-r border-b border-slate-200 bg-slate-50/30";
+                 calendarGrid.appendChild(empty);
+            }
+
+            // Render Event List Preview
+            renderEventList();
+            
+            lucide.createIcons();
+        }
+
+        function renderEventList() {
+            const currentMonthEvents = events.filter(e => 
+                e.dateObj.getMonth() === currentDate.getMonth() && 
+                e.dateObj.getFullYear() === currentDate.getFullYear()
+            );
+            
+            if(currentMonthEvents.length === 0) {
+                eventListEl.innerHTML = `<div class="p-4 rounded-xl border border-dashed border-slate-300 text-center opacity-60 italic">No notes for this month</div>`;
+                return;
+            }
+
+            eventListEl.innerHTML = '<h4 class="font-bold text-slate-400 text-xs uppercase mb-2">Upcoming Notes</h4>';
+            currentMonthEvents.slice(0, 3).forEach(e => {
+                const row = document.createElement('div');
+                row.className = "flex items-center gap-3 mb-2";
+                row.innerHTML = `
+                    <div class="w-2 h-2 rounded-full bg-binder-green"></div>
+                    <span class="font-bold text-binder-green w-6 text-right font-serif text-lg">${e.dateObj.getDate()}</span>
+                    <span class="truncate font-medium text-slate-700">${e.title}</span>
+                `;
+                eventListEl.appendChild(row);
+            });
+        }
+
+        function changeMonth(dir) {
+            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + dir, 1);
+            render();
+        }
+
+        function openModal(date) {
+            selectedDate = date;
+            document.getElementById('modalDateDisplay').textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            eventModal.classList.remove('hidden');
+            eventTitleInput.value = '';
+            eventTitleInput.focus();
+        }
+
+        function closeModal() {
+            eventModal.classList.add('hidden');
+        }
+
+        function saveEvent() {
+            if(eventTitleInput.value.trim()) {
+                events.push({
+                    title: eventTitleInput.value,
+                    dateObj: selectedDate
+                });
+                render();
+                closeModal();
+            }
+        }
+
+        // Init
+        render();
+
+        // Close on escape
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+    </script>
+</body>
+</html>
